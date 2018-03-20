@@ -1,19 +1,9 @@
 import requests, lxml
 import json, re
 import time, os, stat
+import common
 from bs4 import BeautifulSoup
 from pprint import pprint
-
-def byteify(input):
-    if isinstance(input, dict):
-        return {byteify(key): byteify(value)
-                for key, value in input.iteritems()}
-    elif isinstance(input, list):
-        return [byteify(element) for element in input]
-    elif isinstance(input, unicode):
-        return input.encode('utf-8')
-    else:
-        return input
 
 class instanceMap:
     _delimiters = ",;"
@@ -41,7 +31,7 @@ class instanceMap:
         regions = {}
         for row in table.find_all("tr")[1:]:
             region = dict(zip(headings, (td.get_text() for td in row.find_all("td"))))
-            regions[region.get('region name')] = byteify(region).get('region')
+            regions[region.get('region name')] = common.byteify(region).get('region')
     
         return regions
 
@@ -54,7 +44,7 @@ class instanceMap:
     def load(self):    
         if os.path.isfile(self._mapFile) and time.time() - os.stat(self._mapFile)[stat.ST_MTIME] < self._ttl:
             with open(self._mapFile) as json_data:
-                self.instances = byteify(json.load(json_data))
+                self.instances = common.byteify(json.load(json_data))
         else:
             self.instances = self.write()
 
@@ -66,7 +56,7 @@ class instanceMap:
         setTemp = set()
         instances = {}
         for product in products:
-            attributes = byteify(products.get(product).get('attributes'))
+            attributes = common.byteify(products.get(product).get('attributes'))
             location = attributes.pop('location', None)
             region = regions.get(location)
             if 'vcpu' not in attributes or region == None: 
