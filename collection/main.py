@@ -1,8 +1,5 @@
-from instanceMap import instanceMap
+from readData import readData
 import common
 
-instances = instanceMap()
-
-for key in instances.keys():
-    print key
-
+reader = readData()
+reader.readApi()

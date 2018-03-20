@@ -14,12 +14,12 @@ class instanceMap:
     _regionTableId = "w163aac15c27c15"
     _minRegions = 10
 
-    instances = {}
-
     def __init__(self, **kwargs):
         self._mapFile = kwargs.get('file', 'instanceMap.json')
         self._ttl = int(kwargs.get('ttl', 86400))
         self.load()
+        self.loadTypes()
+        self.loadRegions()
     
     def getRegionMap(self):
         html = requests.get('https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html').content
@@ -41,11 +41,18 @@ class instanceMap:
     
         return regions
 
-    def get(self, key):
+    def get(self, region, instance):
+        key = "{0}/{1}".format(region, instance)
         return self.instances.get(key)
 
+    def getTypes(self):
+        return self.instanceTypes
+ 
+    def getRegions(self):
+        return self.regions
+
     def keys(self):
-        return self.instances.keys()
+        return [ key.split('/') for key in self.instances.keys() ]
 
     def load(self):    
         if os.path.isfile(self._mapFile) and time.time() - os.stat(self._mapFile)[stat.ST_MTIME] < self._ttl:
@@ -53,6 +60,22 @@ class instanceMap:
                 self.instances = common.byteify(json.load(json_data))
         else:
             self.instances = self.write()
+   
+    def loadTypes(self):
+        instanceTypes = set()
+        for key in self.keys():
+            instanceType = key[1]
+            instanceTypes.add(instanceType)
+
+        self.instanceTypes = list(instanceTypes)
+
+    def loadRegions(self):
+        regions = set()
+        for key in self.keys():
+            region = key[0]
+            regions.add(region)
+
+        self.regions = list(regions)
 
     def write(self):
         regions = self.getRegionMap()
