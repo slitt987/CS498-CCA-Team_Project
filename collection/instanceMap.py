@@ -132,8 +132,3 @@ class instanceMap:
             json.dump(instances, outfile, indent=4, sort_keys=True)
 
         return instances
-
-instances = instanceMap()
-
-for key in instances.keys():
-    print key
