@@ -11,6 +11,8 @@ class instanceMap:
     _storageSpliter = re.compile(r'([0-9]+) x ([0-9.]+) *([^ ]*.*)$')
     _mapFile = 'instanceMap.json'
     _ttl = 86400
+    _regionTableId = "w163aac15c27c15"
+    _minRegions = 10
 
     instances = {}
 
@@ -23,7 +25,7 @@ class instanceMap:
         html = requests.get('https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html').content
     
         soup = BeautifulSoup(html, "lxml")
-        table = soup.find("table", attrs={"id":"w163aac15c27c15"})
+        table = soup.find("table", attrs={"id":self._regionTableId})
     
         # The first tr contains the field names.
         headings = [th.get_text().lower() for th in table.find("tr").find_all("th")]
@@ -32,6 +34,10 @@ class instanceMap:
         for row in table.find_all("tr")[1:]:
             region = dict(zip(headings, (td.get_text() for td in row.find_all("td"))))
             regions[region.get('region name')] = common.byteify(region).get('region')
+
+        # arbitrary test to make sure we didn't completely fail on parsing data
+        if len(regions.keys()) < self._minRegions:
+            raise Exception('Not able to parse regions from website, please validate the table id is right')
     
         return regions
 
