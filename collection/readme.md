@@ -7,7 +7,7 @@ Python Packages Required:
 Assumed you have configured AWS CLI using 
 `aws configure`
 
-Your IAM role will need privilages to EC2 across zones.  If you use a root or admin account this is fine or you can use this policy
+Your IAM role will need privileges to EC2 across zones.  If you use a root or admin account this is fine or you can use this policy
 ```
 {
     "Version": "2012-10-17",

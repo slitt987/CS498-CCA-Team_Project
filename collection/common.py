@@ -1,3 +1,7 @@
+import pytz
+
+utc=pytz.UTC
+
 def byteify(input):
     if isinstance(input, dict):
         return {byteify(key): byteify(value)
