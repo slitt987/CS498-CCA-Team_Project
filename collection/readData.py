@@ -11,6 +11,10 @@ class readData:
     def __init__(self, **kwargs):
         self._period = kwargs.get('period', 10) * 60
         self._startEpoch = (long(datetime.datetime.now().strftime('%s')) / self._period) * self._period
+        self._instances = kwargs.get('instances')
+        if self._instances == None:
+            self._instances = instanceMap()
+       
         self.setPeriod()
 
     def setPeriod(self, **kwargs):
@@ -20,14 +24,12 @@ class readData:
         self.end = datetime.datetime.fromtimestamp(startEpoch - self._period)
 
     def readApi(self):
-        instances = instanceMap()
-       
         print '['
         i = 0
-        for region in instances.getRegions(): 
+        for region in self._instances.getRegions(): 
             try:
                ec2 = boto3.client('ec2', region_name = region)
-               history = ec2.describe_spot_price_history(InstanceTypes = instances.getTypes(), StartTime = self.start, EndTime = self.end)
+               history = ec2.describe_spot_price_history(InstanceTypes = self._instances.getTypes(), StartTime = self.start, EndTime = self.end)
             except ClientError:
                sys.stderr.write('Insufficient Privileges in AWS for region {0} \n'.format(region))
                continue 
@@ -41,7 +43,7 @@ class readData:
                 region = self._regionSplit.sub('', region)
                 row['AvailabilityZone'] = region
                 instance = row.get('InstanceType')
-                attributes = instances.get(region, instance)
+                attributes = self._instances.get(region, instance)
                 if attributes != None:
                     row['Attributes'] = attributes
                 row['Timestamp'] = row.get('Timestamp').strftime('%Y-%m-%d %H:%M:%S')

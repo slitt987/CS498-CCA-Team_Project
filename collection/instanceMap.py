@@ -157,7 +157,9 @@ class instanceMap:
         
             instances[key] = attributes
         
-        with open(self._mapFile, 'w') as outfile:
+        with open(self._mapFile + '.tmp', 'w') as outfile:
             json.dump(instances, outfile, indent=4, sort_keys=True)
+
+        os.rename(self._mapFile + '.tmp', self._mapFile)
 
         return instances
