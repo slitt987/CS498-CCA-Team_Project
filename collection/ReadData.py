@@ -70,7 +70,7 @@ class ReadData:
     
             for row in history.get('SpotPriceHistory'):
                 row = common.byteify(row)
-                timestamp = common.utc.localize(row.get('Timestamp'))
+                timestamp = row.get('Timestamp')
                 if timestamp < self.start or timestamp >= self.end:
                     continue
 
