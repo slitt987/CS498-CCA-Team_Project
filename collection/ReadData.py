@@ -2,11 +2,11 @@ import datetime
 import pytz
 import sys
 import json
-import common
 import boto3
+import re
 from botocore.exceptions import ClientError
 from InstanceMap import InstanceMap
-import re
+from common import *
 
 
 class ReadData:
@@ -14,7 +14,7 @@ class ReadData:
 
     def __init__(self, **kwargs):
         self.__period = kwargs.get('period', 10) * 60
-        end = kwargs.get('end', common.utc.localize(datetime.datetime.now()))
+        end = kwargs.get('end', utc.localize(datetime.datetime.now()))
         self.__endEpoch = (long(end.strftime('%s')) / self.__period) * self.__period
         self.__instances = kwargs.get('instances')
         if self.__instances is None:
@@ -24,8 +24,8 @@ class ReadData:
 
     def get_period(self, **kwargs):
         end_epoch = kwargs.get('end_epoch', self.__endEpoch)
-        start = common.utc.localize(datetime.datetime.fromtimestamp(end_epoch - 2 * self.__period))
-        end = common.utc.localize(datetime.datetime.fromtimestamp(end_epoch - self.__period))
+        start = utc.localize(datetime.datetime.fromtimestamp(end_epoch - 2 * self.__period))
+        end = utc.localize(datetime.datetime.fromtimestamp(end_epoch - self.__period))
         return start, end
 
     def set_period(self, **kwargs):
@@ -69,7 +69,7 @@ class ReadData:
                 continue
     
             for row in history.get('SpotPriceHistory'):
-                row = common.byteify(row)
+                row = byteify(row)
                 timestamp = row.get('Timestamp')
                 if timestamp < self.start or timestamp >= self.end:
                     continue

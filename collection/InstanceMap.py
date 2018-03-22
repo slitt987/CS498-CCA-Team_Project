@@ -4,10 +4,9 @@ import re
 import time
 import os
 import stat
-import common
 import sys
 from bs4 import BeautifulSoup
-
+from common import *
 
 class InstanceMap:
     __delimiters = ",;"
@@ -37,7 +36,7 @@ class InstanceMap:
         regions = {}
         for row in table.find_all("tr")[1:]:
             region = dict(zip(headings, (td.get_text() for td in row.find_all("td"))))
-            regions[region.get('region name')] = common.byteify(region).get('region')
+            regions[region.get('region name')] = byteify(region).get('region')
 
         # arbitrary test to make sure we didn't completely fail on parsing data
         if len(regions.keys()) < self.__minRegions:
@@ -73,7 +72,7 @@ class InstanceMap:
             file_age = time.time() - os.stat(self.__mapFile)[stat.ST_MTIME]
             if file_age < self.__ttl:
                 with open(self.__mapFile) as json_data:
-                    return common.byteify(json.load(json_data))
+                    return byteify(json.load(json_data))
 
         sys.stderr.write('Local file not found or to old, re-pulling instance data\n')
         return self.write()
@@ -101,7 +100,7 @@ class InstanceMap:
         
         instances = {}
         for product in products:
-            attributes = common.byteify(products.get(product).get('attributes'))
+            attributes = byteify(products.get(product).get('attributes'))
             location = attributes.pop('location', None)
             region = regions.get(location)
             if 'vcpu' not in attributes or region is None:
