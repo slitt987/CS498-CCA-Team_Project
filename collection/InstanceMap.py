@@ -8,6 +8,7 @@ import sys
 from bs4 import BeautifulSoup
 from common import *
 
+
 class InstanceMap:
     __delimiters = ",;"
     __splitter = re.compile('|'.join(map(re.escape, list(__delimiters))))

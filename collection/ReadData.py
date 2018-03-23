@@ -1,5 +1,3 @@
-import datetime
-import pytz
 import sys
 import json
 import boto3
@@ -13,25 +11,33 @@ class ReadData:
     __regionSplit = re.compile('[a-z]*$')
 
     def __init__(self, **kwargs):
-        self.__period = kwargs.get('period', 10) * 60
-        end = kwargs.get('end', utc.localize(datetime.datetime.now()))
-        self.__endEpoch = (long(end.strftime('%s')) / self.__period) * self.__period
+        self.__period = kwargs.get('period', 60) * 60
         self.__instances = kwargs.get('instances')
+        self.__writer = kwargs.get('writer', sys.stdout)
+        self.pretty = kwargs.get('pretty', False)
+
+        end = kwargs.get('end', utc.localize(datetime.datetime.now()))
+        if end.tzinfo is None or end.tzinfo.utcoffset(end) is None:
+            end = utc.localize(end)
+        self.end = end
+        (self.start, self.end) = self.get_period()
+
+        # Check if this is a basic writer (file/stdout) by checking for method fileno
+        self.__byte_writer = callable(getattr(self.__writer, "fileno", None))
         if self.__instances is None:
             self.__instances = InstanceMap()
 
-        (self.start, self.end) = self.get_period()
-
     def get_period(self, **kwargs):
-        end_epoch = kwargs.get('end_epoch', self.__endEpoch)
-        start = utc.localize(datetime.datetime.fromtimestamp(end_epoch - 2 * self.__period))
-        end = utc.localize(datetime.datetime.fromtimestamp(end_epoch - self.__period))
+        end_epoch = (to_epoch(kwargs.get('end', self.end)) / self.__period) * self.__period
+        start = utc.localize(from_epoch(end_epoch - self.__period))
+        end = utc.localize(from_epoch(end_epoch))
         return start, end
 
     def set_period(self, **kwargs):
-        end_epoch = kwargs.get('end_epoch', self.__endEpoch)
+        end = kwargs.get('end', self.end)
+        self.__period = kwargs.get('period', 60) * 60
 
-        (self.start, self.end) = self.get_period(end_epoch=end_epoch)
+        (self.start, self.end) = self.get_period(end=end)
 
     def backfill_read_api(self, start):
         end = self.end
@@ -41,19 +47,22 @@ class ReadData:
             if continue_flag == 1:
                 continue_flag = 2
 
-            self.set_period(end_epoch=long(self.start.strftime('%s')))
+            self.set_period(end=self.start)
             self.start = max(self.start, start)
+
+        if continue_flag == 1 and self.__byte_writer:
+            self.__writer.write('[\n')
 
         self.read_api(3)
 
         self.end = end
 
+    # continue_flag = 0 - single run, 1 - start output, 2 - continue output, 3 - close output
     def read_api(self, continue_flag=0):
-        if continue_flag == 0:
-            print '['
-
         if continue_flag < 2:
             i = 0
+            if self.__byte_writer:
+                self.__writer.write('[\n')
         else:
             i = 1
 
@@ -65,7 +74,8 @@ class ReadData:
                     StartTime=self.start,
                     EndTime=self.end)
             except ClientError:
-                sys.stderr.write('Insufficient Privileges in AWS for region {0} \n'.format(region))
+                sys.stderr.write('Insufficient Privileges in AWS for region {0}\n'.format(region))
+                self.__instances.regions.remove(region)
                 continue
     
             for row in history.get('SpotPriceHistory'):
@@ -76,19 +86,22 @@ class ReadData:
 
                 row['Timestamp'] = timestamp.strftime('%Y-%m-%d %H:%M:%S')
 
-                if i > 0:
-                    print ','
+                if i > 0 and self.__byte_writer:
+                    self.__writer.write(',\n')
 
                 i = i + 1
-                region = row.pop('AvailabilityZone')
+                region = row.get('AvailabilityZone')
                 region = self.__regionSplit.sub('', region)
-                row['AvailabilityZone'] = region
+                row['Region'] = region
                 instance = row.get('InstanceType')
                 attributes = self.__instances.get(region, instance)
                 if attributes is not None:
                     row['Attributes'] = attributes
 
-                print json.dumps(row, indent=4, sort_keys=True)
+                if self.pretty:
+                    self.__writer.write(json.dumps(row, indent=4, sort_keys=True))
+                else:
+                    self.__writer.write(json.dumps(row, sort_keys=True))
 
-        if continue_flag == 0 or continue_flag == 3:
-            print ']'
+        if (continue_flag == 0 or continue_flag == 3) and self.__byte_writer:
+            self.__writer.write('\n]\n')
