@@ -19,6 +19,12 @@ class InstanceMap:
     __pricingJson = 'https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json'
 
     def __init__(self, **kwargs):
+        """Create a new Instance Map for Instance Lookup
+
+        Keyword arguments:
+        file -- filename to write cache json to (default instanceMap.json)
+        ttl -- TTL in seconds for the local cache json before re-creating (default 86400)
+        """
         self.__mapFile = kwargs.get('file', 'instanceMap.json')
         self.__ttl = int(kwargs.get('ttl', 86400))
         self.instances = self.load()
@@ -47,28 +53,34 @@ class InstanceMap:
 
     @staticmethod
     def build_key(region, instance):
+        """Given a region and instance build an internal dictionary key <region>/<instance>"""
         return "{0}/{1}".format(region, instance)
 
     @staticmethod
     def split_key(key):
+        """Given an internal dictionary key split apart the region and instance (list of 2 elements)"""
         return key.split('/')
 
     def get(self, region, instance):
         return self.instances.get(self.build_key(region, instance))
 
     def get_types(self):
+        """Returns a list of instance types"""
         return self.instanceTypes
  
     def get_regions(self):
+        """Returns a list of regions"""
         return self.regions
 
     def keys(self):
+        """Returns the set of region/instance pairs that are known"""
         return [self.split_key(key) for key in self.instances.keys()]
 
     def __iter__(self):
         return iter(self.keys())
 
     def load(self):
+        """Loads InstanceMap from either cache file or from source data based on TTL and file age"""
         if os.path.isfile(self.__mapFile):
             file_age = time.time() - os.stat(self.__mapFile)[stat.ST_MTIME]
             if file_age < self.__ttl:
@@ -79,6 +91,7 @@ class InstanceMap:
         return self.write()
    
     def load_types(self):
+        """Gets the distinct list of instance types from the set of keys in this InstanceMap"""
         instance_types = set()
         for key in self:
             instance_type = key[1]
@@ -87,6 +100,7 @@ class InstanceMap:
         return list(instance_types)
 
     def load_regions(self):
+        """Gets the distinct list of regions from the set of keys in this InstanceMap"""
         regions = set()
         for key in self:
             region = key[0]
@@ -95,6 +109,7 @@ class InstanceMap:
         return list(regions)
 
     def write(self):
+        """Creates an InstanceMap from source data and saves to disk cache as JSON"""
         regions = self.get_region_map()
         json_data = requests.get(self.__pricingJson).content
         products = json.loads(json_data).get('products')
@@ -172,10 +187,12 @@ class InstanceMap:
                 pass
         
             instances[key] = attributes
-        
+
+        # Write json to cache file .tmp
         with open(self.__mapFile + '.tmp', 'w') as outfile:
             json.dump(instances, outfile, indent=4, sort_keys=True)
 
+        # Rename to remove .tmp (atomic write)
         os.rename(self.__mapFile + '.tmp', self.__mapFile)
 
         return instances
