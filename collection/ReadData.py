@@ -35,7 +35,7 @@ class ReadData:
 
     def set_period(self, **kwargs):
         end = kwargs.get('end', self.end)
-        self.__period = kwargs.get('period', 60) * 60
+        self.__period = kwargs.get('period', self.__period / 60) * 60
 
         (self.start, self.end) = self.get_period(end=end)
 
@@ -43,6 +43,7 @@ class ReadData:
         end = self.end
         continue_flag = 1
         while self.start > start:
+            sys.stderr.write('Reading data for period: {0} to {1}\n'.format(self.start.strftime('%Y-%m-%d %H:%M:%S'), self.end.strftime('%Y-%m-%d %H:%M:%S')))
             self.read_api(continue_flag)
             if continue_flag == 1:
                 continue_flag = 2
@@ -53,8 +54,8 @@ class ReadData:
         if continue_flag == 1 and self.__byte_writer:
             self.__writer.write('[\n')
 
+        sys.stderr.write('Reading data for period: {0} to {1}\n'.format(start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S')))
         self.read_api(3)
-
         self.end = end
 
     # continue_flag = 0 - single run, 1 - start output, 2 - continue output, 3 - close output
