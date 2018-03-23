@@ -43,7 +43,7 @@ class ReadData:
         end = self.end
         continue_flag = 1
         while self.start > start:
-            sys.stderr.write('Reading data for period: {0} to {1}\n'.format(self.start.strftime('%Y-%m-%d %H:%M:%S'), self.end.strftime('%Y-%m-%d %H:%M:%S')))
+            eprint('Reading data for period: {0} to {1}'.format(self.start.strftime('%Y-%m-%d %H:%M:%S'), self.end.strftime('%Y-%m-%d %H:%M:%S')))
             self.read_api(continue_flag)
             if continue_flag == 1:
                 continue_flag = 2
@@ -54,7 +54,7 @@ class ReadData:
         if continue_flag == 1 and self.__byte_writer:
             self.__writer.write('[\n')
 
-        sys.stderr.write('Reading data for period: {0} to {1}\n'.format(start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S')))
+        eprint('Reading data for period: {0} to {1}'.format(start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S')))
         self.read_api(3)
         self.end = end
 
@@ -75,7 +75,7 @@ class ReadData:
                     StartTime=self.start,
                     EndTime=self.end)
             except ClientError:
-                sys.stderr.write('Insufficient Privileges in AWS for region {0}\n'.format(region))
+                eprint('Insufficient Privileges in AWS for region {0}'.format(region))
                 self.__instances.regions.remove(region)
                 continue
     

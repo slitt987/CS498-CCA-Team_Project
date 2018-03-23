@@ -1,5 +1,6 @@
 import pytz
 import datetime
+import sys
 
 utc = pytz.UTC
 
@@ -22,3 +23,7 @@ def byteify(i):
         return i.encode('utf-8')
     else:
         return i
+
+
+def eprint(s):
+    sys.stderr.write('{0}: {1}\n'.format(datetime.datetime.now().strftime('%Y-%m-%D %H:%M:%S'), s))
