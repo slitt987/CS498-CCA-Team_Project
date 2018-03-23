@@ -54,7 +54,7 @@ class ReadData:
         if continue_flag == 1 and self.__byte_writer:
             self.__writer.write('[\n')
 
-        eprint('Reading data for period: {0} to {1}'.format(start.strftime('%Y-%m-%d %H:%M:%S'), self.end.strftime('%Y-%m-%d %H:%M:%S')))
+        eprint('Reading data for period: {0} to {1}'.format(self.start.strftime('%Y-%m-%d %H:%M:%S'), self.end.strftime('%Y-%m-%d %H:%M:%S')))
         self.read_api(3)
         self.end = end
 
