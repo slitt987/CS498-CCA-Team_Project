@@ -5,7 +5,8 @@ import re
 from botocore.exceptions import ClientError
 from InstanceMap import InstanceMap
 from common import *
-
+import csv
+import dateutil
 
 class ReadData:
     __regionSplit = re.compile('[a-z]*$')
@@ -110,30 +111,59 @@ class ReadData:
                 eprint('Insufficient Privileges in AWS for region {0}'.format(region))
                 self.__instances.regions.remove(region)
                 continue
-    
-            for row in history.get('SpotPriceHistory'):
-                row = byteify(row)
-                timestamp = row.get('Timestamp')
-                # Validate the API only pulls the data we are interested in
-                if timestamp < self.start or timestamp >= self.end:
-                    continue
 
-                row['Timestamp'] = timestamp.strftime('%Y-%m-%d %H:%M:%S')
-                region = self.__regionSplit.sub('', row.get('AvailabilityZone'))
-                row['Region'] = region
-                instance = row.get('InstanceType')
-                attributes = self.__instances.get(region, instance)
-                if attributes is not None:
-                    row['Attributes'] = attributes
-
-                i = i + 1
-                if i > 1 and self.__byte_writer:
-                    self.__writer.write(',\n')
-
-                if self.pretty:
-                    self.__writer.write(json.dumps(row, indent=4, sort_keys=True))
-                else:
-                    self.__writer.write(json.dumps(row, sort_keys=True))
+            for rowdict in history.get('SpotPriceHistory'):
+                i = self.write_row(rowdict, i)
 
         if (continue_flag == 0 or continue_flag == 3) and self.__byte_writer:
             self.__writer.write('\n]\n')
+
+    def read_file(self, filename, **kwargs):
+        reader = kwargs.get('reader', csv.reader)
+        start = kwargs.get('start', utc.localize(from_epoch(0)))
+
+        self.start = start
+        if self.__byte_writer:
+            self.__writer.write('[\n')
+
+        i = 0
+        with open(filename) as file:
+            for row in reader(file):
+                rowdict = {
+                    "Timestamp": dateutil.parser.parse(row[0]),
+                    "InstanceType": row[1],
+                    "ProductDescription": row[2],
+                    "AvailabilityZone": row[3],
+                    "SpotPrice": row[4]
+                }
+                i = self.write_row(rowdict, i)
+
+        if self.__byte_writer:
+            self.__writer.write('\n]\n')
+
+
+    def write_row(self, row, i=0):
+        row = byteify(row)
+        timestamp = row.get('Timestamp')
+        # Validate the API only pulls the data we are interested in
+        if timestamp < self.start or timestamp >= self.end:
+            return i
+
+        row['Timestamp'] = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        region = self.__regionSplit.sub('', row.get('AvailabilityZone'))
+        row['Region'] = region
+        instance = row.get('InstanceType')
+        attributes = self.__instances.get(region, instance)
+        if attributes is not None:
+            row['Attributes'] = attributes
+
+        i = i + 1
+        if i > 1 and self.__byte_writer:
+            self.__writer.write(',\n')
+
+        if self.pretty:
+            self.__writer.write(json.dumps(row, indent=4, sort_keys=True))
+        else:
+            self.__writer.write(json.dumps(row, sort_keys=True))
+
+        return i
