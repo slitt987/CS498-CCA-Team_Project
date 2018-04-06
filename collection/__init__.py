@@ -1,5 +1,5 @@
-from InstanceMap import InstanceMap
-from ReadData import ReadData
-from ElasticWriter import ElasticWriter
-from common import *
+from .InstanceMap import InstanceMap
+from .ReadData import ReadData
+from .ElasticWriter import ElasticWriter
+from .common import *
 

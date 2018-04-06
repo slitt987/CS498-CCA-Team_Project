@@ -1,8 +1,5 @@
-from ReadData import ReadData
-from InstanceMap import InstanceMap
-from common import *
+from collection import *
 from optparse import OptionParser
-from ElasticWriter import ElasticWriter
 import ConfigParser
 import dateutil
 import os
@@ -73,10 +70,11 @@ instances = InstanceMap()
 if options.output_type.lower().startswith("f"):
     tmpfile = ".{}.tmp".format(options.outfile)
     out = open(tmpfile, 'w')
-if options.output_type.lower().startswith("e"):
+elif options.output_type.lower().startswith("e"):
     out = ElasticWriter(elastic_url, options.index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict, index_mappings=mappings)
 else:
     eprint("ERROR: Invalid output type provided: {}".format(options.output_type))
+    exit(1)
 
 # Initialize the reader class
 reader = ReadData(instances=instances, period=options.minutes, writer=out, pretty=options.pretty)

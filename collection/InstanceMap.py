@@ -6,7 +6,7 @@ import os
 import stat
 import sys
 from bs4 import BeautifulSoup
-from common import *
+from .common import *
 
 
 class InstanceMap:

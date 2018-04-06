@@ -3,8 +3,8 @@ import json
 import boto3
 import re
 from botocore.exceptions import ClientError
-from InstanceMap import InstanceMap
-from common import *
+from .InstanceMap import InstanceMap
+from .common import *
 import csv
 import dateutil
 

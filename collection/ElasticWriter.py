@@ -2,7 +2,7 @@ from elasticsearch import Elasticsearch
 import elasticsearch
 import types
 import datetime
-from common import *
+from .common import *
 
 
 class ElasticWriter:
