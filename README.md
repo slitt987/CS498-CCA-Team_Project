@@ -8,6 +8,7 @@ Python Packages Required:
  - bs4
  - lxml
  - requests
+ - elasticsearch
 
 Assumed you have configured AWS CLI using 
 `aws configure`
