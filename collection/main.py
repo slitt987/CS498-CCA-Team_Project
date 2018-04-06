@@ -2,10 +2,11 @@ from ReadData import ReadData
 from InstanceMap import InstanceMap
 from common import *
 from optparse import OptionParser
+from ElasticWriter import ElasticWriter
 import ConfigParser
 import dateutil
-import elasticsearch
 import os
+import json
 
 Config = ConfigParser.ConfigParser()
 Config.read('collection.ini')
@@ -19,14 +20,29 @@ def config_get_default(config, section, option, default=None):
     return default
 
 
-minutes = config_get_default(Config, "main", "minutes", 60)
+minutes = int(config_get_default(Config, "main", "minutes", 60))
 input_type = config_get_default(Config, "main", "input", "api")
 output_type = config_get_default(Config, "main", "output", "file")
 pretty = bool(config_get_default(Config, "main", "pretty", False))
 
 outfile = config_get_default(Config, "file", "outfile", "output.json")
 
-elastic_url = config_get_default(Config, "elastic", "url", "localhost").split(',')
+# For elastic info we are going to go a bit lower level
+if Config.has_section("elastic"):
+    elastic_dict = dict(Config.items("elastic"))
+else:
+    elastic_dict = {}
+
+elastic_url = elastic_dict.pop("url", "localhost")
+
+if Config.has_section("elastic_index"):
+    index_dict = dict(Config.items("elastic_index"))
+else:
+    index_dict = {}
+
+index = index_dict.pop("name", "spot_price_history")
+doc_type = index_dict.pop("doc_type", "price")
+mappings = json.loads(index_dict.pop("mappings", "{}"))
 
 usage_msg="""usage: %prog [-i <api|file>] [-f <filename>] [-m <N>] [-s <timestamp>] [-o <filename>]"""
 opt_parser = OptionParser(usage_msg)
@@ -44,35 +60,51 @@ opt_parser.add_option("--outfile", "-o", action="store", type="string", dest="ou
                       help="Output file name (Default: {})".format(outfile))
 opt_parser.add_option("--pretty", "-p", action="store_true", dest="pretty", default=pretty,
                       help="Pretty format output")
+opt_parser.add_option("--elasticurl", "-e", action="store", type="string", dest="elastic_url", default=elastic_url,
+                      help="URL for the elasticsearch server (Default: {})".format(elastic_url))
+opt_parser.add_option("--indexname", "-x", action="store", type="string", dest="index", default=index,
+                      help="elasticsearch index name (Default: {})".format(index))
 (options, args) = opt_parser.parse_args()
+elastic_url = options.elastic_url.split(',')
 
 instances = InstanceMap()
-tmpfile = ".{}.tmp".format(options.outfile)
-with open(tmpfile, 'w') as out:
-    # Initialize the reader class
-    reader = ReadData(instances=instances, period=options.minutes, writer=out, pretty=options.pretty)
-    if options.start is not None:
-        start = utc.localize(dateutil.parser.parse(start))
-    else:
-        start = utc.localize(from_epoch(0))
 
-    # Call the correct reader
-    if options.start is not None and options.input.lower().startswith("a"):
-        reader.backfill_read_api(start)
-    elif options.input.lower().startswith("f"):
-        if options.filename is None:
-            eprint("ERROR: running in file mode, but no filename supplied. Aborting.")
-            exit(1)
+# Open the writer
+if options.output_type.lower().startswith("f"):
+    tmpfile = ".{}.tmp".format(options.outfile)
+    out = open(tmpfile, 'w')
+if options.output_type.lower().startswith("e"):
+    out = ElasticWriter(elastic_url, options.index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict, index_mappings=mappings)
+else:
+    eprint("ERROR: Invalid output type provided: {}".format(options.output_type))
 
-        reader.read_file(options.filename, start=start)
-    elif options.input.lower().startswith("a"):
-        reader.read_api()
-    else:
-        eprint("ERROR: Invalid input mode supplied: {}.  Aborting".format(options.input))
+# Initialize the reader class
+reader = ReadData(instances=instances, period=options.minutes, writer=out, pretty=options.pretty)
+if options.start is not None:
+    start = utc.localize(dateutil.parser.parse(start))
+else:
+    start = utc.localize(from_epoch(0))
 
-try:
-    os.remove(options.outfile)
-except OSError:
-    pass
+# Call the correct reader
+if options.start is not None and options.input.lower().startswith("a"):
+    reader.backfill_read_api(start)
+elif options.input.lower().startswith("f"):
+    if options.filename is None:
+        eprint("ERROR: running in file mode, but no filename supplied. Aborting.")
+        exit(1)
 
-os.rename(tmpfile, options.outfile)
+    reader.read_file(options.filename, start=start)
+elif options.input.lower().startswith("a"):
+    reader.read_api()
+else:
+    eprint("ERROR: Invalid input mode supplied: {}.  Aborting".format(options.input))
+
+# Close the writer
+if options.output_type.lower().startswith("f"):
+    out.close()
+    try:
+        os.remove(options.outfile)
+    except OSError:
+        pass
+
+    os.rename(tmpfile, options.outfile)

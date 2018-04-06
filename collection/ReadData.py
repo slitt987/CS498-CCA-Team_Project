@@ -161,12 +161,15 @@ class ReadData:
             row['Attributes'] = attributes
 
         i = i + 1
-        if i > 1 and self.__byte_writer:
-            self.__writer.write(',\n')
+        if self.__byte_writer:
+            if i > 1:
+                self.__writer.write(',\n')
 
-        if self.pretty:
-            self.__writer.write(json.dumps(row, indent=4, sort_keys=True))
+            if self.pretty:
+                self.__writer.write(json.dumps(row, indent=4, sort_keys=True))
+            else:
+                self.__writer.write(json.dumps(row, sort_keys=True))
         else:
-            self.__writer.write(json.dumps(row, sort_keys=True))
+            self.__writer.write(row)
 
         return i
