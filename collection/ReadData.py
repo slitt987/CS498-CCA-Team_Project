@@ -149,7 +149,10 @@ class ReadData:
         if timestamp < self.start or timestamp >= self.end:
             return i
 
-        row['Timestamp'] = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        # for a byte_writer stringify the timestamps
+        if self.__byte_writer:
+            row['Timestamp'] = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+
         region = self.__regionSplit.sub('', row.get('AvailabilityZone'))
         row['Region'] = region
         instance = row.get('InstanceType')
