@@ -6,7 +6,7 @@ import os
 import json
 
 Config = ConfigParser.ConfigParser()
-Config.read('collection.ini')
+Config.read('chalicelib/collection.ini')
 
 
 def config_get_default(config, section, option, default=None):
