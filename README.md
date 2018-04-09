@@ -9,6 +9,7 @@ Python Packages Required:
  - lxml
  - requests
  - elasticsearch
+ - chalice (for REST API)
 
 Assumed you have configured AWS CLI using 
 `aws configure`
