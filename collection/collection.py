@@ -1,4 +1,4 @@
-from chalicelib.collection import *
+from chalicelib import *
 from optparse import OptionParser
 import ConfigParser
 import dateutil
