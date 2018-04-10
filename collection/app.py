@@ -2,10 +2,14 @@ from chalice import Chalice
 
 app = Chalice(app_name='collection')
 
+def get_stage():
+    return app.current_request.context['stage']
 
 @app.route('/')
 def index():
-    return {'hello': 'world'}
+    stage = get_stage()
+    return {'hello': 'world',
+            'stage': stage}
 
 
 # The view function above will return {"hello": "world"}

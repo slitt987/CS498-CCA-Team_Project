@@ -8,7 +8,7 @@ from .common import *
 import csv
 import dateutil
 
-class ReadData:
+class EnhanceSpotPriceData:
     __regionSplit = re.compile('[a-z]*$')
 
     def __init__(self, **kwargs):

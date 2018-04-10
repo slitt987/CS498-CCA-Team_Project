@@ -71,13 +71,13 @@ if options.output_type.lower().startswith("f"):
     tmpfile = ".{}.tmp".format(options.outfile)
     out = open(tmpfile, 'w')
 elif options.output_type.lower().startswith("e"):
-    out = ElasticWriter(elastic_url, options.index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict, index_mappings=mappings)
+    out = IndexData(elastic_url, options.index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict, index_mappings=mappings)
 else:
     eprint("ERROR: Invalid output type provided: {}".format(options.output_type))
     exit(1)
 
 # Initialize the reader class
-reader = ReadData(instances=instances, period=options.minutes, writer=out, pretty=options.pretty)
+reader = EnhanceSpotPriceData(instances=instances, period=options.minutes, writer=out, pretty=options.pretty)
 if options.start is not None:
     start = utc.localize(dateutil.parser.parse(start))
 else:

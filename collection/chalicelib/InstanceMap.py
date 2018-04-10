@@ -4,7 +4,6 @@ import re
 import time
 import os
 import stat
-import sys
 from bs4 import BeautifulSoup
 from .common import *
 
@@ -25,7 +24,7 @@ class InstanceMap:
         file -- filename to write cache json to (default instanceMap.json)
         ttl -- TTL in seconds for the local cache json before re-creating (default 86400)
         """
-        self.__mapFile = kwargs.get('file', 'instanceMap.json')
+        self.__mapFile = kwargs.get('file', '/tmp/instanceMap.json')
         self.__ttl = int(kwargs.get('ttl', 86400))
         self.instances = self.load()
         self.instanceTypes = self.load_types()
@@ -87,7 +86,7 @@ class InstanceMap:
                 with open(self.__mapFile) as json_data:
                     return byteify(json.load(json_data))
 
-        sys.stderr.write('Local file not found or to old, re-pulling instance data\n')
+        eprint('Local file not found or to old, re-pulling instance data\n')
         return self.write()
    
     def load_types(self):
