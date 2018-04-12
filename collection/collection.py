@@ -1,45 +1,30 @@
 from chalicelib import *
 from optparse import OptionParser
-import ConfigParser
 import dateutil
 import os
 import json
 
-Config = ConfigParser.ConfigParser()
-Config.read('chalicelib/collection.ini')
+config = ConfigStage('chalicelib/collection.ini')
 
+minutes = int(config.get("main", "minutes", 60))
+input_type = config.get("main", "input", "api")
+output_type = config.get("main", "output", "file")
+pretty = bool(config.get("main", "pretty", False))
 
-def config_get_default(config, section, option, default=None):
-    if config.has_section(section):
-        if config.has_option(section, option):
-            return config.get(section, option)
+outfile = config.get("file", "outfile", "output.json")
 
-    return default
-
-
-minutes = int(config_get_default(Config, "main", "minutes", 60))
-input_type = config_get_default(Config, "main", "input", "api")
-output_type = config_get_default(Config, "main", "output", "file")
-pretty = bool(config_get_default(Config, "main", "pretty", False))
-
-outfile = config_get_default(Config, "file", "outfile", "output.json")
-
-# For elastic info we are going to go a bit lower level
-if Config.has_section("elastic"):
-    elastic_dict = dict(Config.items("elastic"))
-else:
-    elastic_dict = {}
-
+elastic_dict = config.items("elastic", {})
 elastic_url = elastic_dict.pop("url", "localhost")
 
-if Config.has_section("elastic_index"):
-    index_dict = dict(Config.items("elastic_index"))
-else:
-    index_dict = {}
-
+index_dict = config.items("history_index", {})
 index = index_dict.pop("name", "spot_price_history")
 doc_type = index_dict.pop("doc_type", "price")
 mappings = json.loads(index_dict.pop("mappings", "{}"))
+
+instance_index_dict = config.items("instance_index", {})
+instance_index = instance_index_dict.pop("name", "instance_map")
+instance_doc_type = instance_index_dict.pop("doc_type", "instance")
+instance_mappings = json.loads(instance_index_dict.pop("mappings", "{}"))
 
 usage_msg="""usage: %prog [-i <api|file>] [-f <filename>] [-m <N>] [-s <timestamp>] [-o <filename>]"""
 opt_parser = OptionParser(usage_msg)
@@ -64,14 +49,24 @@ opt_parser.add_option("--indexname", "-x", action="store", type="string", dest="
 (options, args) = opt_parser.parse_args()
 elastic_url = options.elastic_url.split(',')
 
-instances = InstanceMap()
+
+out = IndexData("localhost", index="spot_price_history", doc_type="price")
+out.get_client().indices.delete("spot_price_history")
+out = IndexData("localhost", index="instance_map", doc_type="price")
+out.get_client().indices.delete("instance_map-1")
+
+
 
 # Open the writer
 if options.output_type.lower().startswith("f"):
     tmpfile = ".{}.tmp".format(options.outfile)
     out = open(tmpfile, 'w')
+    instances = InstanceMap(file="instanceMap.json")
 elif options.output_type.lower().startswith("e"):
     out = IndexData(elastic_url, options.index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict, index_mappings=mappings)
+    instance_out = IndexData(elastic_url, instance_index, doc_type=instance_doc_type, connection_options=elastic_dict,
+                             index_settings=instance_index_dict, index_mappings=instance_mappings, alias=True)
+    instances = InstanceMap(elastic_index=instance_out)
 else:
     eprint("ERROR: Invalid output type provided: {}".format(options.output_type))
     exit(1)

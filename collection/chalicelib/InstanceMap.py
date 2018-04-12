@@ -17,15 +17,18 @@ class InstanceMap:
     __regionUrl = 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html'
     __pricingJson = 'https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json'
 
-    def __init__(self, **kwargs):
+    def __init__(self, file=None, elastic_index=None, ttl=86400):
         """Create a new Instance Map for Instance Lookup
 
         Keyword arguments:
         file -- filename to write cache json to (default instanceMap.json)
         ttl -- TTL in seconds for the local cache json before re-creating (default 86400)
         """
-        self.__mapFile = kwargs.get('file', '/tmp/instanceMap.json')
-        self.__ttl = int(kwargs.get('ttl', 86400))
+        if file is not None and elastic_index is not None:
+            raise ValueError("Invalid arguments: Can not supply both a file and an index")
+        self.__elastic_index = elastic_index
+        self.__mapFile = file
+        self.__ttl = ttl
         self.instances = self.load()
         self.instanceTypes = self.load_types()
         self.regions = self.load_regions()
@@ -53,12 +56,12 @@ class InstanceMap:
     @staticmethod
     def build_key(region, instance):
         """Given a region and instance build an internal dictionary key <region>/<instance>"""
-        return "{0}/{1}".format(region, instance)
+        return "{0}~{1}".format(region, instance)
 
     @staticmethod
     def split_key(key):
         """Given an internal dictionary key split apart the region and instance (list of 2 elements)"""
-        return key.split('/')
+        return key.split('~')
 
     def get(self, region, instance):
         return self.instances.get(self.build_key(region, instance))
@@ -80,14 +83,21 @@ class InstanceMap:
 
     def load(self):
         """Loads InstanceMap from either cache file or from source data based on TTL and file age"""
-        if os.path.isfile(self.__mapFile):
-            file_age = time.time() - os.stat(self.__mapFile)[stat.ST_MTIME]
-            if file_age < self.__ttl:
-                with open(self.__mapFile) as json_data:
-                    return byteify(json.load(json_data))
+        if self.__mapFile is not None:
+            if os.path.isfile(self.__mapFile):
+                file_age = time.time() - os.stat(self.__mapFile)[stat.ST_MTIME]
+                if file_age < self.__ttl:
+                    with open(self.__mapFile) as json_data:
+                        eprint("Fetching instance map from cache")
+                        return byteify(json.load(json_data))
+        elif self.__elastic_index is not None:
+            index_age = to_epoch(datetime.datetime.now()) - to_epoch(self.__elastic_index.creation_date)
+            if index_age < self.__ttl and not self.__elastic_index.created:
+                eprint("Fetching instance map from cache")
+                return self.__elastic_index.load(ids=True)
 
-        eprint('Local file not found or to old, re-pulling instance data\n')
-        return self.write()
+        eprint("Cache not found or to old, re-fetching instance data")
+        return self.fetch()
    
     def load_types(self):
         """Gets the distinct list of instance types from the set of keys in this InstanceMap"""
@@ -107,7 +117,7 @@ class InstanceMap:
 
         return list(regions)
 
-    def write(self):
+    def fetch(self):
         """Creates an InstanceMap from source data and saves to disk cache as JSON"""
         regions = self.get_region_map()
         json_data = requests.get(self.__pricingJson).content
@@ -187,11 +197,21 @@ class InstanceMap:
         
             instances[key] = attributes
 
-        # Write json to cache file .tmp
-        with open(self.__mapFile + '.tmp', 'w') as outfile:
-            json.dump(instances, outfile, indent=4, sort_keys=True)
+        if self.__mapFile is not None:
+            # Write json to cache file .tmp
+            with open(self.__mapFile + '.tmp', 'w') as outfile:
+                json.dump(instances, outfile, indent=4, sort_keys=True)
 
-        # Rename to remove .tmp (atomic write)
-        os.rename(self.__mapFile + '.tmp', self.__mapFile)
+            # Rename to remove .tmp (atomic write)
+            os.rename(self.__mapFile + '.tmp', self.__mapFile)
+        else:
+            if not self.__elastic_index.created and self.__elastic_index.is_alias():
+                self.__elastic_index.get_next_alias_index()
+
+            self.__elastic_index.dump(instances)
+
+            if self.__elastic_index.is_alias():
+                self.__elastic_index.update_alias()
+                self.__elastic_index.purge_alias_index(ttl=self.__ttl * 2)
 
         return instances

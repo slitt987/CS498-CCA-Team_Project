@@ -11,7 +11,7 @@ import dateutil
 class EnhanceSpotPriceData:
     __regionSplit = re.compile('[a-z]*$')
 
-    def __init__(self, **kwargs):
+    def __init__(self, period=60, instances=None, writer=sys.stdout, pretty=False, end=utc.localize(datetime.datetime.now())):
         """Create a new ReadData object for data load
 
         Keyword arguments:
@@ -25,12 +25,11 @@ class EnhanceSpotPriceData:
               delimiters will be written, if this method is missing it assumed to be a complex writer that
               doesn't need a delimiter between messages
         """
-        self.__period = kwargs.get('period', 60) * 60
-        self.__instances = kwargs.get('instances')
-        self.__writer = kwargs.get('writer', sys.stdout)
-        self.pretty = kwargs.get('pretty', False)
+        self.__period = period * 60
+        self.__instances = instances
+        self.__writer = writer
+        self.pretty = pretty
 
-        end = kwargs.get('end', utc.localize(datetime.datetime.now()))
         if end.tzinfo is None or end.tzinfo.utcoffset(end) is None:
             end = utc.localize(end)
         self.end = end
@@ -52,16 +51,16 @@ class EnhanceSpotPriceData:
         end = utc.localize(from_epoch(end_epoch))
         return start, end
 
-    def set_period(self, **kwargs):
+    def set_period(self, end = None, period = None):
         """set the period for the requested end datetime based
 
         Keyword arguments:
         end -- datetime to read based on (default self.end)
         period -- how many minutes to load per read (default self.__period)
         """
-        end = kwargs.get('end', self.end)
-        self.__period = kwargs.get('period', self.__period / 60) * 60
-
+        end = end if end is not None else self.end
+        period = period if period is not None else self.__period / 60
+        self.__period = period * 60
         (self.start, self.end) = self.get_period(end=end)
 
     def backfill_read_api(self, start):
@@ -78,7 +77,7 @@ class EnhanceSpotPriceData:
             self.start = max(self.start, start)
 
         if continue_flag == 1 and self.__byte_writer:
-            self.__writer.write('[\n')
+            self.__writer.fetch('[\n')
 
         eprint('Reading data for period: {0} to {1}'.format(self.start.strftime('%Y-%m-%d %H:%M:%S'), self.end.strftime('%Y-%m-%d %H:%M:%S')))
         self.read_api(3)
@@ -96,7 +95,7 @@ class EnhanceSpotPriceData:
         if continue_flag < 2:
             i = 0
             if self.__byte_writer:
-                self.__writer.write('[\n')
+                self.__writer.fetch('[\n')
         else:
             i = 1
 
@@ -116,15 +115,12 @@ class EnhanceSpotPriceData:
                 i = self.write_row(rowdict, i)
 
         if (continue_flag == 0 or continue_flag == 3) and self.__byte_writer:
-            self.__writer.write('\n]\n')
+            self.__writer.fetch('\n]\n')
 
-    def read_file(self, filename, **kwargs):
-        reader = kwargs.get('reader', csv.reader)
-        start = kwargs.get('start', utc.localize(from_epoch(0)))
-
+    def read_file(self, filename, reader=csv.reader, start=utc.localize(from_epoch(0))):
         self.start = start
         if self.__byte_writer:
-            self.__writer.write('[\n')
+            self.__writer.fetch('[\n')
 
         i = 0
         with open(filename) as file:
@@ -139,7 +135,7 @@ class EnhanceSpotPriceData:
                 i = self.write_row(rowdict, i)
 
         if self.__byte_writer:
-            self.__writer.write('\n]\n')
+            self.__writer.fetch('\n]\n')
 
 
     def write_row(self, row, i=0):
@@ -163,7 +159,7 @@ class EnhanceSpotPriceData:
         i = i + 1
         if self.__byte_writer:
             if i > 1:
-                self.__writer.write(',\n')
+                self.__writer.fetch(',\n')
 
             if self.pretty:
                 self.__writer.write(json.dumps(row, indent=4, sort_keys=True))

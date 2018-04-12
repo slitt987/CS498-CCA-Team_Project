@@ -1,20 +1,23 @@
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, helpers
 import elasticsearch
-import types
 import datetime
+import json
 from .common import *
 import re
 
 
 class IndexData:
-    def __init__(self, url, index, doc_type="doc", connection_options={}, index_settings={}, index_mappings={"properties":{}}, alias=False):
-        if not isinstance(url, types.ListType):
+    def __init__(self, url, index, doc_type="doc", connection_options={}, index_settings={}, index_mappings=None, alias=False):
+        if type(url) is not list:
             url = [url]
+
+        index_mappings = index_mappings if index_mappings is not None else {"properties": {}}
 
         self.__client = Elasticsearch(url, **connection_options)
         alias_exists = self.__client.indices.exists_alias(name=index)
         self.__alias = alias_exists or alias
         self.__doc_type = doc_type
+        self.__default = index_mappings.pop("_default_", {})
         self.__index_settings = index_settings
         self.__index_mappings = index_mappings
 
@@ -22,16 +25,17 @@ class IndexData:
         self.__index_settings["number_of_replicas"] = int(self.__index_settings.get("number_of_replicas", 0))
 
         if alias_exists:
+            self.created = False
             self.__alias_name = index
             self.__index = self.get_alias_index()
         elif alias:
             self.__alias_name = index
             self.__index = "{}-1".format(index)
-            self.create_if_not_exists(index)
+            self.create_if_not_exists()
             self.update_alias()
         else:
             self.__index = index
-            self.create_if_not_exists(index)
+            self.create_if_not_exists()
 
         self.creation_date = self.get_index_creation_date()
 
@@ -48,6 +52,44 @@ class IndexData:
         self.check_is_alias()
         alias_data = byteify(self.__client.indices.get_alias(name=self.__alias_name))
         return alias_data.keys()[0]
+
+    def get_result_source(self, results):
+        return results.get("hits").get("total"), \
+               [byteify(data.get("_source")) for data in results.get("hits").get("hits")]
+
+    def scan(self, scroll_ttl='5m', query=None, ids=False):
+        if query is None:
+            query = {
+                "query": {
+                    "match_all": {}
+                }
+            }
+
+        results = helpers.scan(self.__client, index=self.__index, doc_type=self.__doc_type, query=query, scroll=scroll_ttl)
+        if ids:
+            return ((byteify(result.get("_id")), byteify(result.get("_source"))) for result in results)
+        else:
+            return (byteify(result.get("_source")) for result in results)
+
+    def load(self, ids=False):
+        if ids:
+            return dict(self.scan(ids=True))
+        else:
+            return list(self.scan())
+
+    def search_terms(self, terms):
+        term_list = []
+        for term in terms:
+            value = terms.get(term)
+            if type(value) is list:
+                op = "terms"
+            else:
+                op = "term"
+
+            term_list.append({op: {term: value}})
+        query = {"query": {"constant_score": {"filter": {"bool": {"must": term_list}}}}}
+        # print "DEBUG QUERY: {}".format(json.dumps(query, indent=4, sort_keys=True))
+        return self.scan(query=query)
 
     def purge_alias_index(self, ttl=86400):
         self.check_is_alias()
@@ -85,7 +127,7 @@ class IndexData:
                 index = None
             else:
                 self.__index = index
-                self.create_if_not_exists(index)
+                self.create_if_not_exists()
 
         return index
 
@@ -107,19 +149,40 @@ class IndexData:
         if not self.__alias:
             raise ValueError("Index requested not an alias: {}".format(self.__index))
 
-    def create_if_not_exists(self, index):
-        if not self.__client.indices.exists(index):
-            self.__client.indices.create(index=index,
-                                         body={"mappings": {self.__doc_type: self.__index_mappings},
-                                               "settings": self.__index_settings})
+    def is_alias(self):
+        return self.__alias
 
-    def write(self, data):
+    def create_if_not_exists(self, index=None):
+        index = index if index is not None else self.__index
+        if not self.__client.indices.exists(index):
+            self.created = True
+            self.__client.indices.create(index=index,
+                                         body={"mappings": {self.__doc_type: self.__index_mappings, "_default_": self.__default},
+                                               "settings": self.__index_settings})
+        else:
+            self.created = False
+
+    def write(self, data, id=None):
         for key in data:
             if isinstance(data.get(key), datetime.datetime):
                 data[key] = data.pop(key).strftime('%Y-%m-%dT%H:%M:%S%z')
         try:
-            self.__client.index(index=self.__index, doc_type=self.__doc_type, body=data)
+            request = {"index": self.__index, "doc_type": self.__doc_type, "body": data}
+            if id is not None:
+                request["id"] = id
+
+            self.__client.index(**request)
         except elasticsearch.exceptions.RequestError as e:
             eprint("bad doc: {}".format(data))
             eprint(e)
             exit(1)
+
+    def dump(self, data):
+        if type(data) is list:
+            for row in data:
+                self.write(row)
+        if type(data) is dict:
+            for id in data:
+                self.write(data.get(id), id=id)
+        else:
+            self.write(data)
