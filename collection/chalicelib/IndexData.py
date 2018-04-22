@@ -1,4 +1,4 @@
-from elasticsearch import Elasticsearch, helpers
+from elasticsearch import Elasticsearch, helpers, RequestsHttpConnection
 import elasticsearch
 import datetime
 import json
@@ -13,7 +13,33 @@ class IndexData:
 
         index_mappings = index_mappings if index_mappings is not None else {"properties": {}}
 
-        self.__client = Elasticsearch(url, **connection_options)
+        port = connection_options.pop("port", None)
+        full_urls = []
+        for addr in url:
+            if type(addr) is dict:
+                full_urls.append(addr)
+            elif ":" in addr:
+                full_urls.append({"host": addr.split(":")[0], "port": int(addr.split(":")[1])})
+            elif port is not None:
+                full_urls.append({"host": addr, "port": int(port)})
+            else:
+                full_urls.append(addr)
+
+        use_ssl = connection_options.pop("use_ssl", None)
+        if use_ssl is not None:
+             connection_options["use_ssl"] = bool(use_ssl)
+
+        verify_certs = connection_options.pop("verify_certs", None)
+        if verify_certs is not None:
+             connection_options["verify_certs"] = bool(verify_certs)
+
+        connection_class = connection_options.pop("connection_class", None)
+        if type(connection_class) is type:
+             connection_options["connection_class"] = connection_class
+        elif connection_class == "RequestsHttpConnection":
+             connection_options["connection_class"] = RequestsHttpConnection
+
+        self.__client = Elasticsearch(full_urls, **connection_options)
         alias_exists = self.__client.indices.exists_alias(name=index)
         self.__alias = alias_exists or alias
         self.__doc_type = doc_type
