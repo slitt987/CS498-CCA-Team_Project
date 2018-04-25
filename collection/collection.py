@@ -50,13 +50,6 @@ opt_parser.add_option("--indexname", "-x", action="store", type="string", dest="
 elastic_url = options.elastic_url.split(',')
 
 
-out = IndexData("localhost", index="spot_price_history", doc_type="price")
-out.get_client().indices.delete("spot_price_history")
-out = IndexData("localhost", index="instance_map", doc_type="price")
-out.get_client().indices.delete("instance_map-1")
-
-
-
 # Open the writer
 if options.output_type.lower().startswith("f"):
     tmpfile = ".{}.tmp".format(options.outfile)
@@ -74,7 +67,7 @@ else:
 # Initialize the reader class
 reader = EnhanceSpotPriceData(instances=instances, period=options.minutes, writer=out, pretty=options.pretty)
 if options.start is not None:
-    start = utc.localize(dateutil.parser.parse(start))
+    start = utc.localize(dateutil.parser.parse(options.start))
 else:
     start = utc.localize(from_epoch(0))
 
