@@ -54,12 +54,12 @@ elastic_url = options.elastic_url.split(',')
 if options.output_type.lower().startswith("f"):
     tmpfile = ".{}.tmp".format(options.outfile)
     out = open(tmpfile, 'w')
-    instances = InstanceMap(file="instanceMap.json")
+    instances = InstanceMap(file="instanceMap.json", ttl=8640000)
 elif options.output_type.lower().startswith("e"):
     out = IndexData(elastic_url, options.index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict, index_mappings=mappings)
     instance_out = IndexData(elastic_url, instance_index, doc_type=instance_doc_type, connection_options=elastic_dict,
                              index_settings=instance_index_dict, index_mappings=instance_mappings, alias=True)
-    instances = InstanceMap(elastic_index=instance_out)
+    instances = InstanceMap(elastic_index=instance_out, ttl=8640000)
 else:
     eprint("ERROR: Invalid output type provided: {}".format(options.output_type))
     exit(1)

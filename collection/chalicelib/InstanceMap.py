@@ -35,9 +35,10 @@ class InstanceMap:
     
     def get_region_map(self):
         html = requests.get(self.__regionUrl).content
-    
+        tableid = re.search('<table id="([^"]*)"', html).groups(0)[0] 
         soup = BeautifulSoup(html, "lxml")
-        table = soup.find("table", attrs={"id": self.__regionTableId})
+        #table = soup.find("table", attrs={"id": self.__regionTableId})
+        table = soup.find("table", attrs={"id": tableid})
     
         # The first tr contains the field names.
         headings = [th.get_text().lower() for th in table.find("tr").find_all("th")]
