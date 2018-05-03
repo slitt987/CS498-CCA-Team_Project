@@ -8,6 +8,7 @@ from .common import *
 import csv
 import dateutil
 
+
 class EnhanceSpotPriceData:
     __regionSplit = re.compile('[a-z]*$')
 
