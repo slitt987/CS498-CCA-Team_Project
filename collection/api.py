@@ -30,20 +30,49 @@ instances_index = IndexData(elastic_url, instance_index, doc_type=instance_doc_t
 class GetBid(Resource):
     @staticmethod
     def get_bid_cache_key(instance, region, timestamp, duration):
-        """ pieces together our key format """
+        """
+        pieces together our key format
+        :param instance:
+        :param region:
+        :param timestamp: datetime
+        :param duration: int: hours?
+        :return: string: key
+        """
         epoch_ten_minute = long(to_epoch(timestamp) / 600)
         return "{0}.{1}.{2}.{3}".format(instance, region, epoch_ten_minute, duration)
 
     def get_bid_cache(self, instance, region, timestamp, duration):
-        """ looks for value in cache and compares against whitelist """
+        """
+        looks for value in cache
+        :param instance:
+        :param region:
+        :param timestamp: datetime
+        :param duration: int: hours?
+        :return: float: bid
+        """
         return bid_cache.get(self.get_bid_cache_key(instance, region, timestamp, duration))
 
     def put_bid_cache(self, instance, region, timestamp, duration, bid):
-        """ puts a value on the cache (miss) """
+        """
+        puts a value on the cache (miss)
+        :param instance:
+        :param region:
+        :param timestamp: datetime
+        :param duration: int: hours?
+        :param bid:
+        :return: None
+        """
         bid_cache[self.get_bid_cache_key(instance, region, timestamp, duration)] = bid
 
     def get_bid(self, instance, region, timestamp, duration):
-        """ returns the bid value evaluted for the input parameters """
+        """
+        returns the bid value evaluated for the input parameters
+        :param instance:
+        :param region:
+        :param timestamp: datetime
+        :param duration: int: hours?
+        :return: float: bid
+        """
         bid = 1.0
         #TODO
 
@@ -51,7 +80,11 @@ class GetBid(Resource):
         return bid
 
     def get_instances(self, query):
-        """ gets a list of instances matching the search criteria """
+        """
+        gets a list of instances matching the search criteria
+        :param query: query parsed from post (dict)
+        :return: list((region, instance))
+        """
         #only try to cache simple queries
         query_length = len(str(query))
         if query_length < 500:
@@ -66,10 +99,14 @@ class GetBid(Resource):
             if len(instances) > 0 and query_length < 500:
                 search_cache[str(query)] = list(instances)
 
-        return (list(instances), pformat({"query": query, "matches": instances, "search": list(search_results)}))
+        return list(instances)
 
     def post(self, duration):
-        """ Implementation of API GET """
+        """
+        Post API
+        :param duration: int: hours?
+        :return: bid response (dict)
+        """
         query = byteify(request.get_json(force=True))
         timestamp = query.pop("timestamp", None)
         if timestamp is None:
@@ -77,7 +114,7 @@ class GetBid(Resource):
         else:
             timestamp = utc.localize(dateutil.parser.parse(timestamp))
 
-        (instance_matches, debug) = self.get_instances(query)
+        instance_matches = self.get_instances(query)
 
         # loop through instance/region combos
         out_instance = None
@@ -95,7 +132,7 @@ class GetBid(Resource):
                 bid_price = bid
 
         if out_instance is None:
-            abort(404, reason="ERROR: Not Found - no instances can be found matching criteria - Debug: {}".format(debug))
+            abort(404, reason="ERROR: Not Found - no instances can be found matching criteria")
         else:
             return {
                 'instance': out_instance,

@@ -18,12 +18,13 @@ class InstanceMap:
     __pricingJson = 'https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/index.json'
 
     def __init__(self, file=None, elastic_index=None, ttl=86400):
-        """Create a new Instance Map for Instance Lookup
-
-        Keyword arguments:
-        file -- filename to write cache json to (default instanceMap.json)
-        ttl -- TTL in seconds for the local cache json before re-creating (default 86400)
         """
+        Create a new Instance Map for Instance Lookup
+        :param file: filename to write cache json to (mutex w/ elastic_index)
+        :param elastic_index: IndexData object to write to (mutex w/ file)
+        :param ttl: TTL in seconds for the local cache json before re-creating (default 86400)
+        """
+
         if file is not None and elastic_index is not None:
             raise ValueError("Invalid arguments: Can not supply both a file and an index")
         self.__elastic_index = elastic_index
@@ -56,15 +57,30 @@ class InstanceMap:
 
     @staticmethod
     def build_key(region, instance):
-        """Given a region and instance build an internal dictionary key <region>/<instance>"""
+        """
+        Given a region and instance build an internal dictionary key
+        :param region: region name (e.g. us-west-1)
+        :param instance: instance name (e.g. r3.xlarge)
+        :return: string: "<region>~<instance>"
+        """
         return "{0}~{1}".format(region, instance)
 
     @staticmethod
     def split_key(key):
-        """Given an internal dictionary key split apart the region and instance (list of 2 elements)"""
+        """
+        Given an internal dictionary key split apart the region and instance (list of 2 elements)
+        :param key: instance map key
+        :return: pair: (region, instance)
+        """
         return key.split('~')
 
     def get(self, region, instance):
+        """
+        Simple get from a loaded instance map
+        :param region: region name (e.g. us-west-1)
+        :param instance: instance name (e.g. r3.xlarge)
+        :return: dict: attributes
+        """
         return self.instances.get(self.build_key(region, instance))
 
     def get_types(self):

@@ -8,6 +8,17 @@ import re
 
 class IndexData:
     def __init__(self, url, index, doc_type="doc", connection_options={}, index_settings={}, index_mappings=None, alias=False):
+        """
+        Constructor
+        :param url: ES URL (or list of URL's)
+        :param index: Name of the index to present
+        :param doc_type: document type name to present from the index (Default: doc)
+        :param connection_options: map of connection options to pass to the ES client constructor (Default: Empty)
+        :param index_settings: storage settings for the index to use on creation (if needed) (Default: Empty)
+        :param index_mappings: field mappings to provide for index creation (if needed) (i.e. type control) (Default: None)
+        :param alias: is the provided "index" name really an alias (or should it be - on creation)
+        """
+
         if type(url) is not list:
             url = [url]
 
@@ -66,6 +77,13 @@ class IndexData:
         self.creation_date = self.get_index_creation_date()
 
     def get_index_creation_date(self, index=None, settings=None):
+        """
+        Retrieves an indexes creation timestamp
+        :param index: index name to lookup (Default: self)
+        :param settings: object previously fetched from ES that contains creation information (Default: None)
+        :return: creation datetime
+        """
+
         if index is None:
             index = self.__index
 
@@ -75,15 +93,20 @@ class IndexData:
         return from_epoch(float(settings.get("settings").get("index").get("creation_date")) / 1000)
 
     def get_alias_index(self):
+        """get the first index behind an alias (used for A/B replacement index usage)"""
         self.check_is_alias()
         alias_data = byteify(self.__client.indices.get_alias(name=self.__alias_name))
         return alias_data.keys()[0]
 
-    def get_result_source(self, results):
-        return results.get("hits").get("total"), \
-               [byteify(data.get("_source")) for data in results.get("hits").get("hits")]
-
     def scan(self, scroll_ttl='5m', query=None, ids=False):
+        """
+        Read data from the index into a generator
+        :param scroll_ttl: ttl for the scroll (must fetch more results before this time expires - set longer for a slow consumer)
+        :param query: ES query to submit (Default: match_all)
+        :param ids: should the ES document ids be in the result set
+        (if True this returns pairs of (id, source) in the result) (Default: False)
+        :return: generator of data
+        """
         if query is None:
             query = {
                 "query": {
@@ -98,12 +121,22 @@ class IndexData:
             return (byteify(result.get("_source")) for result in results)
 
     def load(self, ids=False):
+        """
+        load data to memory from an elastic search index
+        :param ids: should the result be a dictionary keyed on ES doc id's or a list of source (Default: false)
+        :return: a list or dict of source
+        """
         if ids:
             return dict(self.scan(ids=True))
         else:
             return list(self.scan())
 
     def search_terms(self, terms):
+        """
+        searches an ES index for a series of terms
+        :param terms: a dictionary of attributes to search with either a single or list of terms to match
+        :return: generator of data
+        """
         term_list = []
         for term in terms:
             value = terms.get(term)
@@ -118,6 +151,11 @@ class IndexData:
         return self.scan(query=query)
 
     def purge_alias_index(self, ttl=86400):
+        """
+        purges old indexes that used to be tied to an alias (used for A/B replacement index usage)
+        :param ttl: how long to wait before removing an index that used to be tied to the alias (Default: 86400)
+        :return: None
+        """
         self.check_is_alias()
         alias_index = self.get_alias_index()
         indexes = self.__client.indices.get("{}-*".format(self.__alias_name))
@@ -132,12 +170,15 @@ class IndexData:
                 self.__client.indices.delete(index)
 
     def get_index(self):
+        """Returns the index name"""
         return self.__index
 
     def get_client(self):
+        """returns the ES client"""
         return self.__client
 
     def get_next_alias_index(self):
+        """Gets the next index name for a given alias (used for A/B replacement index usage)"""
         self.check_is_alias()
 
         index = None
@@ -158,6 +199,11 @@ class IndexData:
         return index
 
     def update_alias(self):
+        """
+        Updates the alias to point to the current index
+        (to be used after populating a new index created by get_next_alias_index)
+        (used for A/B replacement index usage)
+        """
         self.check_is_alias()
 
         if self.__client.indices.exists_alias(name=self.__alias_name):
@@ -172,13 +218,23 @@ class IndexData:
         self.__client.indices.put_alias(self.__index, self.__alias_name)
 
     def check_is_alias(self):
+        """Ensure that the alias provided really is an alias, not an index (or raise Exception)"""
         if not self.__alias:
             raise ValueError("Index requested not an alias: {}".format(self.__index))
 
     def is_alias(self):
+        """
+        Check if the current object is configured as an alias
+        :return: boolean
+        """
         return self.__alias
 
     def create_if_not_exists(self, index=None):
+        """
+        Creates an index if it doesn't already exist in ES
+        :param index: index name to create
+        :return: None
+        """
         index = index if index is not None else self.__index
         if not self.__client.indices.exists(index):
             self.created = True
@@ -189,6 +245,12 @@ class IndexData:
             self.created = False
 
     def write(self, data, id=None):
+        """
+        Writes data into the index
+        :param data: source data to write into the index
+        :param id: document id to write to (Default: None - auto id)
+        :return: None
+        """
         for key in data:
             if isinstance(data.get(key), datetime.datetime):
                 data[key] = data.pop(key).strftime('%Y-%m-%dT%H:%M:%S%z')
@@ -204,6 +266,11 @@ class IndexData:
             exit(1)
 
     def dump(self, data):
+        """
+        Unpacks a data iterable and writes data to ES
+        :param data: data to write to the index (dictionary will use the dictionary key as the doc id)
+        :return: None
+        """
         if type(data) is list:
             for row in data:
                 self.write(row)

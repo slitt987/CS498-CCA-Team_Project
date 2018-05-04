@@ -12,19 +12,19 @@ import dateutil
 class EnhanceSpotPriceData:
     __regionSplit = re.compile('[a-z]*$')
 
-    def __init__(self, period=60, instances=None, writer=sys.stdout, pretty=False, end=utc.localize(datetime.datetime.now())):
-        """Create a new ReadData object for data load
-
-        Keyword arguments:
-        period -- how many minutes to load per read (default 60)
-        instances -- an InstanceMap object to use for data enrichment (default InstanceMap())
-        writer -- object to write JSON data to (e.g. file), must provide a write() method (default sys.stdout)
-        pretty -- should the JSON be pretty printed (default False)
-        end -- datetime to read based on (default datetime.datetime.now())
+    def __init__(self, period=60, instances=None, writer=sys.stdout, pretty=False,
+                 end=utc.localize(datetime.datetime.now())):
+        """
+        Constructor
 
         NOTE: it is assumed that if the writer has a fileno method this must be a file and
               delimiters will be written, if this method is missing it assumed to be a complex writer that
               doesn't need a delimiter between messages
+        :param period: how many minutes to load per read (default 60)
+        :param instances: an InstanceMap object to use for data enrichment (default InstanceMap())
+        :param writer: object to write JSON data to (e.g. file), must provide a write() method (default sys.stdout)
+        :param pretty: should the JSON be pretty printed (default False)
+        :param end: datetime to read based on (default datetime.datetime.now())
         """
         self.__period = period * 60
         self.__instances = instances
@@ -41,23 +41,24 @@ class EnhanceSpotPriceData:
         if self.__instances is None:
             self.__instances = InstanceMap()
 
-    def get_period(self, **kwargs):
-        """get the period for the requested end datetime based on the period minutes
-
-        Keyword arguments:
-        end -- datetime to read based on (default self.end)
+    def get_period(self, end=None):
         """
-        end_epoch = (to_epoch(kwargs.get('end', self.end)) / self.__period) * self.__period
+        get the period for the requested end datetime based on the period minutes
+        :param end: datetime to read based on (default self.end)
+        :return: pair: (start, end)
+        """
+        end = end if end is not None else self.end
+        end_epoch = (to_epoch(end) / self.__period) * self.__period
         start = utc.localize(from_epoch(end_epoch - self.__period))
         end = utc.localize(from_epoch(end_epoch))
         return start, end
 
-    def set_period(self, end = None, period = None):
-        """set the period for the requested end datetime based
-
-        Keyword arguments:
-        end -- datetime to read based on (default self.end)
-        period -- how many minutes to load per read (default self.__period)
+    def set_period(self, end=None, period=None):
+        """
+        set the period for the requested end datetime based
+        :param end: datetime to read based on (default self.end)
+        :param period: how many minutes to load per read (default self.__period)
+        :return: None
         """
         end = end if end is not None else self.end
         period = period if period is not None else self.__period / 60
@@ -65,7 +66,11 @@ class EnhanceSpotPriceData:
         (self.start, self.end) = self.get_period(end=end)
 
     def backfill_read_api(self, start):
-        """get data incrementally from the start to self.end in period minute increments"""
+        """
+        get data incrementally from the start to self.end in period minute increments
+        :param start: time to read back to
+        :return: None
+        """
         end = self.end
         continue_flag = 1
         while self.start > start:
@@ -85,13 +90,14 @@ class EnhanceSpotPriceData:
         self.end = end
 
     def read_api(self, continue_flag=0):
-        """Read spot price data via the boto3 API
-
-        continue_flag: int (default 0)
+        """
+        Read spot price data via the boto3 API
+        :param continue_flag: int (default 0)
             0 -- single run
             1 -- start output
             2 -- continue output
             3 -- close output
+        :return: None
         """
         if continue_flag < 2:
             i = 0
@@ -119,6 +125,13 @@ class EnhanceSpotPriceData:
             self.__writer.fetch('\n]\n')
 
     def read_file(self, filename, reader=csv.reader, start=utc.localize(from_epoch(0))):
+        """
+        Reads spot price data from a file to enhance (constructs dict to match boto3 api)
+        :param filename: filename to read
+        :param reader: parser to use to read the file data (Default: csv.reader)
+        :param start: start time to filter the file data based on (Default: epoch)
+        :return: None
+        """
         self.start = start
         if self.__byte_writer:
             self.__writer.fetch('[\n')
@@ -140,6 +153,12 @@ class EnhanceSpotPriceData:
 
 
     def write_row(self, row, i=0):
+        """
+        Enhances a row of spot price data and writes the data to the target
+        :param row: row of pricing data (dict)
+        :param i: row number in file (used for file writer) (Default: 0)
+        :return: the row number writen to the target (i + 1 on write, i on skip)
+        """
         row = byteify(row)
         timestamp = row.get('Timestamp')
         # Validate the API only pulls the data we are interested in
