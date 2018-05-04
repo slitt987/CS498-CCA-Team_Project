@@ -79,25 +79,40 @@ class GetBid(Resource):
         self.put_bid_cache(instance, region, timestamp, duration, bid)
         return bid
 
-    def get_instances(self, query):
+    @staticmethod
+    def get_instances_cache_key(query, numeric_as_min):
+        """
+        Returns the cache key (if we should cache) for a given query
+        :param query:
+        :param numeric_as_min:
+        :return: string: key
+        """
+        query = str(query)
+        if len(query) < 500:
+            return query if numeric_as_min else "E-{}".format(query)
+        else:
+            return None
+
+    def get_instances(self, query, numeric_as_min):
         """
         gets a list of instances matching the search criteria
         :param query: query parsed from post (dict)
+        :param numeric_as_min: should numeric parameters be treated as min values (instead of max)
         :return: list((region, instance))
         """
         #only try to cache simple queries
-        query_length = len(str(query))
-        if query_length < 500:
-            instances = search_cache.get(str(query), set())
+        cache_key = self.get_instances_cache_key(query, numeric_as_min)
+        if cache_key is not None:
+            instances = search_cache.get(cache_key, set())
         else:
             instances = set()
 
         if len(instances) == 0:
-            search_results = instances_index.search_terms(query)
+            search_results = instances_index.search_terms(query, numeric_as_min=numeric_as_min)
             for instance in search_results:
                 instances.add((instance.get("InstanceType"), instance.get("Region")))
-            if len(instances) > 0 and query_length < 500:
-                search_cache[str(query)] = list(instances)
+            if len(instances) > 0 and cache_key is not None:
+                search_cache[cache_key] = list(instances)
 
         return list(instances)
 
@@ -114,7 +129,9 @@ class GetBid(Resource):
         else:
             timestamp = utc.localize(dateutil.parser.parse(timestamp))
 
-        instance_matches = self.get_instances(query)
+        numeric_as_min = query.pop("numeric_as_min", "true").lower()[0] == "t"
+
+        instance_matches = self.get_instances(query, numeric_as_min)
 
         # loop through instance/region combos
         out_instance = None
@@ -137,7 +154,8 @@ class GetBid(Resource):
             return {
                 'instance': out_instance,
                 'region': out_region,
-                'bid_price': bid
+                'bid_price': bid,
+                'matching_instances': len(instance_matches)
             }
 
 

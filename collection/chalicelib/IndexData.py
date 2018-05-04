@@ -75,6 +75,7 @@ class IndexData:
             self.create_if_not_exists()
 
         self.creation_date = self.get_index_creation_date()
+        self.__numeric_fields = None
 
     def get_index_creation_date(self, index=None, settings=None):
         """
@@ -131,21 +132,41 @@ class IndexData:
         else:
             return list(self.scan())
 
-    def search_terms(self, terms):
+    def search_terms(self, terms, numeric_as_min=False):
         """
         searches an ES index for a series of terms
         :param terms: a dictionary of attributes to search with either a single or list of terms to match
+        :param numeric_as_min: should numbers be treated as min values (or absolute) (Default: False)
         :return: generator of data
         """
+
+        # Get a list of numeric fields if numbers_as_min set and I don't already have this cached
+        if numeric_as_min and self.__numeric_fields is None:
+            field_mapping = byteify(
+                self.__client.indices.get_mapping(index=self.__index, doc_type=self.__doc_type))
+            field_mapping = field_mapping.get(field_mapping.keys()[0])\
+                .get("mappings")\
+                .get(self.__doc_type)\
+                .get("properties")
+            self.__numeric_fields = [field for field in field_mapping if
+                              field_mapping.get(field).get("type") in ["float", "long", "int"]]
+
         term_list = []
         for term in terms:
             value = terms.get(term)
-            if type(value) is list:
-                op = "terms"
-            else:
-                op = "term"
+            if numeric_as_min and term in self.__numeric_fields:
+                if type(value) is list:
+                    value = min(value)
 
-            term_list.append({op: {term: value}})
+                term_list.append({"range": {term: {"gte": value}}})
+            else:
+                if type(value) is list:
+                    op = "terms"
+                else:
+                    op = "term"
+
+                term_list.append({op: {term: value}})
+
         query = {"query": {"constant_score": {"filter": {"bool": {"must": term_list}}}}}
         # print "DEBUG QUERY: {}".format(json.dumps(query, indent=4, sort_keys=True))
         return self.scan(query=query)

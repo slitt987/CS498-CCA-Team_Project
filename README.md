@@ -42,6 +42,10 @@ Example API usage (-k for self signed cert):
 curl -d '{"Region" : "us-east-1"}' -H "Content-Type: application/json" -X POST -k https://localhost:5000/get_bid/1
 curl -d '{"Region" : "us-east-1", "vcpu": [4, 8]}' -H "Content-Type: application/json" -X POST -k https://localhost:5000/get_bid/1
 
+Special request fields (optional):
+ - timestamp - when you will place the bid - default now
+ - numeric_as_min - should numeric arguments be treated as lower bounds - default True
+
 Available search fields:
  - InstanceType : keyword
  - Region : keyword
@@ -72,4 +76,3 @@ Available search fields:
  - tenancy : keyword
  - vcpu : long
 
-TODO: Currently all searches are exact match searches.  This should be changed to >= searches for all numeric fields
