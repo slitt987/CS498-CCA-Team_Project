@@ -4,3 +4,7 @@ boto3
 beautifulsoup4
 lxml
 requests
+flask
+flask_restful
+netaddr
+expiringdict

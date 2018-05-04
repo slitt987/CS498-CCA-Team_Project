@@ -155,6 +155,8 @@ class EnhanceSpotPriceData:
         instance = row.get('InstanceType')
         attributes = self.__instances.get(region, instance)
         if attributes is not None:
+            attributes.pop('Region', None)
+            attributes.pop('InstanceType', None)
             row['Attributes'] = attributes
 
         i = i + 1

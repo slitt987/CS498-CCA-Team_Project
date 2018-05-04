@@ -1,5 +1,8 @@
 *.json
 *.pyc
 *.csv
+*.pem
+*.pid
+*.log
 .*.tmp
 .idea

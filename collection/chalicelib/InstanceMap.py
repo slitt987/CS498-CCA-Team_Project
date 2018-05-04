@@ -134,6 +134,8 @@ class InstanceMap:
          
             # attributes we are going to process
             instance_type = attributes.pop('instanceType', None)
+            attributes['InstanceType'] = instance_type
+            attributes['Region'] = region
             features = attributes.pop('processorFeatures', None)
             storage = attributes.pop('storage', None)
             memory = attributes.pop('memory', None)
@@ -185,8 +187,18 @@ class InstanceMap:
             # Parse memory info
             memory_features = (memory + ' ').split(' ')
             try:
-                attributes['memorySize'] = float(memory_features[0])
-                attributes['memorySizeUnits'] = memory_features[1]
+                memory_unit = memory_features[1]
+                memory_size = float(memory_features[0])
+
+                if memory_unit == "MiB":
+                    memory_size = memory_size / 1024.0
+                    memory_unit = "GiB"
+                elif memory_unit == "TiB":
+                    memory_size = memory_size * 1024.0
+                    memory_unit = "GiB"
+
+                attributes['memorySize'] = memory_size
+                attributes['memorySizeUnit'] = memory_unit
             except ValueError:
                 pass
         

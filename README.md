@@ -9,7 +9,7 @@ Python Packages Required:
  - lxml
  - requests
  - elasticsearch
- - chalice (for REST API)
+ - flask (for REST API)
 
 Assumed you have configured AWS CLI using 
 `aws configure`
@@ -34,3 +34,42 @@ Your IAM role will need privileges to EC2 across zones.  If you use a root or ad
     ]
 }
 ```
+
+create a self signed cert in the directory called cert.pem with key key.pem
+   - openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+
+Example API usage (-k for self signed cert):
+curl -d '{"Region" : "us-east-1"}' -H "Content-Type: application/json" -X POST -k https://localhost:5000/get_bid/1
+curl -d '{"Region" : "us-east-1", "vcpu": [4, 8]}' -H "Content-Type: application/json" -X POST -k https://localhost:5000/get_bid/1
+
+Available search fields:
+ - InstanceType : keyword
+ - Region : keyword
+ - capacitystatus : keyword
+ - clockSpeed : keyword
+ - currentGeneration : keyword
+ - dedicatedEbsThroughput : keyword
+ - driveQuantity : long
+ - driveSize : float
+ - ebsOptimized : keyword
+ - ecu : float
+ - enhancedNetworkingSupported : keyword
+ - gpu : keyword
+ - instanceFamily : keyword
+ - intelAvx2Available : keyword
+ - intelAvxAvailable : keyword
+ - intelTurboAvailable : keyword
+ - licenseModel : keyword
+ - memorySize : float
+ - memorySizeUnits : keyword
+ - networkPerformance : keyword
+ - normalizationSizeFactor : long
+ - physicalCores : keyword
+ - physicalProcessor : keyword
+ - processorArchitecture : keyword
+ - processorFeatures : keyword
+ - storageType : keyword
+ - tenancy : keyword
+ - vcpu : long
+
+TODO: Currently all searches are exact match searches.  This should be changed to >= searches for all numeric fields
