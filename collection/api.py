@@ -52,7 +52,7 @@ history_gen = (
         "Timestamp": to_epoch(utc.localize(dateutil.parser.parse(r.get("Timestamp")))),
         "Price": r.get("SpotPrice")
     } for r in history)
-# model = SomeClass(history_gen)
+model = SpotBidPredictor(history_gen)
 
 # Get Bid endpoint
 class GetBid(Resource):
@@ -105,8 +105,8 @@ class GetBid(Resource):
         :param duration: int: hours?
         :return: float: bid
         """
-        bid = 1.0
-        # bid = model.predict(
+        #bid = 1.0
+        bid = model.predict(instance, region, os)
 
         self.put_bid_cache(instance, region, os, timestamp, duration, bid)
         return bid
