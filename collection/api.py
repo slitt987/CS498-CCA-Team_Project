@@ -7,16 +7,31 @@ import dateutil
 from pprint import pformat
 import json
 
+try:
+    # Python 2.6-2.7
+    from HTMLParser import HTMLParser
+except ImportError:
+    # Python 3
+    from html.parser import HTMLParser
+
+h = HTMLParser()
 app = Flask(__name__)
 config = ConfigStage('chalicelib/collection.ini')
 
 context = SSL.Context(SSL.SSLv23_METHOD)
 api = Api(app)
-bid_cache = ExpiringDict(max_len=int(config.get("api", "cache_length")), max_age_seconds=float(config.get("api", "ttl_seconds")))
-search_cache = ExpiringDict(max_len=int(config.get("api", "search_cache_length")), max_age_seconds=float(config.get("api", "search_ttl_seconds")))
+bid_cache = ExpiringDict(max_len=int(config.get("api", "cache_length")),
+                         max_age_seconds=float(config.get("api", "ttl_seconds")))
+search_cache = ExpiringDict(max_len=int(config.get("api", "search_cache_length")),
+                            max_age_seconds=float(config.get("api", "search_ttl_seconds")))
 
 elastic_dict = config.items("elastic", {})
 elastic_url = elastic_dict.pop("url", "localhost")
+
+index_dict = config.items("history_index", {})
+index = index_dict.pop("name", "spot_price_history")
+doc_type = index_dict.pop("doc_type", "price")
+mappings = json.loads(index_dict.pop("mappings", "{}"))
 
 instance_index_dict = config.items("instance_index", {})
 instance_index = instance_index_dict.pop("name", "instance_map")
@@ -26,57 +41,74 @@ instance_mappings = json.loads(instance_index_dict.pop("mappings", "{}"))
 instances_index = IndexData(elastic_url, instance_index, doc_type=instance_doc_type, connection_options=elastic_dict,
                             index_settings=instance_index_dict, index_mappings=instance_mappings, alias=True)
 
+# Training
+history = IndexData(elastic_url, index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict,
+                    index_mappings=mappings).scan(scroll_ttl="10m")
+history_gen = (
+    {
+        "Region": r.get("Region"),
+        "InstanceType": r.get("InstanceType"),
+        "OS": r.get("ProductDescription"),
+        "Timestamp": to_epoch(utc.localize(dateutil.parser.parse(r.get("Timestamp")))),
+        "Price": r.get("SpotPrice")
+    } for r in history)
+# model = SomeClass(history_gen)
+
 # Get Bid endpoint
 class GetBid(Resource):
     @staticmethod
-    def get_bid_cache_key(instance, region, timestamp, duration):
+    def get_bid_cache_key(instance, region, os, timestamp, duration):
         """
         pieces together our key format
         :param instance:
         :param region:
+        :param os:
         :param timestamp: datetime
         :param duration: int: hours?
         :return: string: key
         """
         epoch_ten_minute = long(to_epoch(timestamp) / 600)
-        return "{0}.{1}.{2}.{3}".format(instance, region, epoch_ten_minute, duration)
+        return "{0}.{1}.{2}.{3}.{4}".format(instance, region, os, epoch_ten_minute, duration)
 
-    def get_bid_cache(self, instance, region, timestamp, duration):
+    def get_bid_cache(self, instance, region, os, timestamp, duration):
         """
         looks for value in cache
         :param instance:
         :param region:
+        :param os:
         :param timestamp: datetime
         :param duration: int: hours?
         :return: float: bid
         """
-        return bid_cache.get(self.get_bid_cache_key(instance, region, timestamp, duration))
+        return bid_cache.get(self.get_bid_cache_key(instance, region, os, timestamp, duration))
 
-    def put_bid_cache(self, instance, region, timestamp, duration, bid):
+    def put_bid_cache(self, instance, region, os, timestamp, duration, bid):
         """
         puts a value on the cache (miss)
         :param instance:
         :param region:
+        :param os:
         :param timestamp: datetime
         :param duration: int: hours?
         :param bid:
         :return: None
         """
-        bid_cache[self.get_bid_cache_key(instance, region, timestamp, duration)] = bid
+        bid_cache[self.get_bid_cache_key(instance, region, os, timestamp, duration)] = bid
 
-    def get_bid(self, instance, region, timestamp, duration):
+    def get_bid(self, instance, region, os, timestamp, duration):
         """
         returns the bid value evaluated for the input parameters
         :param instance:
         :param region:
+        :param os:
         :param timestamp: datetime
         :param duration: int: hours?
         :return: float: bid
         """
         bid = 1.0
-        #TODO
+        # bid = model.predict(
 
-        self.put_bid_cache(instance, region, timestamp, duration, bid)
+        self.put_bid_cache(instance, region, os, timestamp, duration, bid)
         return bid
 
     @staticmethod
@@ -119,11 +151,15 @@ class GetBid(Resource):
     def post(self, duration):
         """
         Post API
+        :param os:
         :param duration: int: hours?
         :return: bid response (dict)
         """
+
         query = byteify(request.get_json(force=True))
         timestamp = query.pop("timestamp", None)
+        os = query.pop("os", "Linux/Unix")
+        
         if timestamp is None:
             timestamp = utc.localize(datetime.datetime.now())
         else:
@@ -139,9 +175,9 @@ class GetBid(Resource):
         bid_price = -1.0
         for instance, region in instance_matches:
             # Try cache, fallback to model
-            bid = self.get_bid_cache(instance, region, timestamp, duration)
+            bid = self.get_bid_cache(instance, region, os, timestamp, duration)
             if bid is None:
-                bid = self.get_bid(instance, region, timestamp, duration)
+                bid = self.get_bid(instance, region, os, timestamp, duration)
 
             if out_instance is None or bid < bid_price:
                 out_instance = instance
@@ -154,7 +190,8 @@ class GetBid(Resource):
             return {
                 'instance': out_instance,
                 'region': out_region,
-                'bid_price': bid,
+                'os': os,
+                'bid_price': bid_price,
                 'matching_instances': len(instance_matches)
             }
 

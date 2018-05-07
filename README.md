@@ -44,6 +44,7 @@ curl -d '{"Region" : "us-east-1", "vcpu": [4, 8]}' -H "Content-Type: application
 
 Special request fields (optional):
  - timestamp - when you will place the bid - default now
+ - os - "Linux/Unix", "Windows", "SUSE Linux" - default "Linux/Unix"
  - numeric_as_min - should numeric arguments be treated as lower bounds - default True
 
 Available search fields:
