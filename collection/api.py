@@ -49,7 +49,7 @@ history_gen = (
         "Region": r.get("Region"),
         "InstanceType": r.get("InstanceType"),
         "OS": r.get("ProductDescription"),
-        "Timestamp": to_epoch(utc.localize(dateutil.parser.parse(r.get("Timestamp")))),
+        "Timestamp": to_epoch(dateutil.parser.parse(r.get("Timestamp"))),
         "Price": r.get("SpotPrice")
     } for r in history)
 model = SpotBidPredictor(history_gen)
