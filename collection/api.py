@@ -26,7 +26,7 @@ search_cache = ExpiringDict(max_len=int(config.get("api", "search_cache_length")
                             max_age_seconds=float(config.get("api", "search_ttl_seconds")))
 
 elastic_dict = config.items("elastic", {})
-elastic_url = elastic_dict.pop("url", "localhost")
+elastic_url = elastic_dict.pop("url", "localhost").split(",")
 
 index_dict = config.items("history_index", {})
 index = index_dict.pop("name", "spot_price_history")
@@ -159,7 +159,7 @@ class GetBid(Resource):
         query = byteify(request.get_json(force=True))
         timestamp = query.pop("timestamp", None)
         os = query.pop("os", "Linux/Unix")
-        
+
         if timestamp is None:
             timestamp = utc.localize(datetime.datetime.now())
         else:
