@@ -50,9 +50,9 @@ history = history_index.scan(scroll_ttl="10m")
 # Debug
 history_gen = (
     {
-        "Region": r.get("Region"),
-        "InstanceType": r.get("InstanceType"),
-        "ProductDescription": r.get("ProductDescription"),
+        "Region": r.get("Region").lower(),
+        "InstanceType": r.get("InstanceType").lower(),
+        "ProductDescription": r.get("ProductDescription").lower(),
         "Timestamp": to_epoch(dateutil.parser.parse(r.get("Timestamp"))),
         "SpotPrice": float(r.get("SpotPrice"))
     } for r in history)
@@ -61,13 +61,14 @@ history = history_index.scan(scroll_ttl="10m")
 
 history_gen = (
     {
-        "Region": r.get("Region"),
-        "InstanceType": r.get("InstanceType"),
-        "ProductDescription": r.get("ProductDescription"),
+        "Region": r.get("Region").lower(),
+        "InstanceType": r.get("InstanceType").lower(),
+        "ProductDescription": r.get("ProductDescription").lower(),
         "Timestamp": to_epoch(dateutil.parser.parse(r.get("Timestamp"))),
         "SpotPrice": float(r.get("SpotPrice"))
     } for r in history)
 eprint("Starting model training")
+history_gen=list(itertools.islice(history_gen,10000))
 model = SpotBidPredictor(history_gen)
 eprint("Training complete")
 
@@ -178,7 +179,7 @@ class GetBid(Resource):
 
         query = byteify(request.get_json(force=True))
         timestamp = query.pop("timestamp", None)
-        os = query.pop("os", "Linux/Unix")
+        os = query.pop("os", "Linux/Unix").lower()
 
         if timestamp is None:
             timestamp = utc.localize(datetime.datetime.now())
@@ -194,6 +195,8 @@ class GetBid(Resource):
         out_region = None
         bid_price = -1.0
         for instance, region in instance_matches:
+            instance = instance.lower()
+            region = region.lower()
             # Try cache, fallback to model
             bid = self.get_bid_cache(instance, region, os, timestamp, duration)
             if bid is None:

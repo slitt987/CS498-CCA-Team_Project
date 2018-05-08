@@ -34,9 +34,9 @@ class SpotBidPredictor:
     # Sample input dict
     # {'InstanceType':['c3.8xlarge'], 'Region':['ap-northeast-1a'], 'ProductDescription':['Windows']}
     def predict(self, instance_type, region, product_description):
-        type_code = self.get_type_cat_code(instance_type)
-        region_code = self.get_az_cat_code(region)
-        os_code = self.get_os_cat_code(product_description)
+        type_code = self._type_category_code.get(instance_type)
+        region_code = self._az_category_code.get(region)
+        os_code = self._os_category_code.get(product_description)
         input = self._get_df_from_values(type_code, region_code, os_code)
         return self._lm_model.predict(input)[0]
 
@@ -46,6 +46,12 @@ class SpotBidPredictor:
     def get_target_bid_price(self):
         return self._target_price
 
+    def _pre_process_train_data(self):
+        self._train_data = self._int_df
+        self._categorize_train_data()
+        self._prune_train_data()
+
+    """
     def get_az_cat_code(self, value):
         return self._get_key_from_value(self._az_category_code, value);
 
@@ -55,20 +61,16 @@ class SpotBidPredictor:
     def get_type_cat_code(self, value):
         return self._get_key_from_value(self._type_category_code, value);
 
-    def _pre_process_train_data(self):
-        self._train_data = self._int_df
-        self._categorize_train_data()
-        self._prune_train_data()
-
     def _get_key_from_value(self, data, value):
         for code, name in data.iteritems():
             if value == name:
                 return code
         return None
+    """
 
     def _get_df_from_values(self, type_code, region_code, os_code):
         temp = {'InstanceType':[type_code], 'Region':[region_code], 'ProductDescription':[os_code]}
-        print ("Created DF for predict ", temp)
+        eprint("Getting bid for params - {}".format(temp))
         return pd.DataFrame(temp)
 
     def _categorize_train_data(self):
@@ -78,9 +80,13 @@ class SpotBidPredictor:
         self._train_data['OS'] = self._train_data['ProductDescription'].cat.codes
         self._train_data['LOC'] = self._train_data['Region'].cat.codes
         self._train_data['TYPE'] = self._train_data['InstanceType'].cat.codes
-        self._az_category_code = dict(enumerate(self._train_data['Region'].cat.categories))
-        self._os_category_code = dict(enumerate(self._train_data['ProductDescription'].cat.categories))
-        self._type_category_code = dict(enumerate(self._train_data['InstanceType'].cat.categories))
+        self._az_category_code = dict([(v[1], v[0]) for v in list(enumerate(self._train_data['Region'].cat.categories))])
+        self._os_category_code = dict([(v[1], v[0]) for v in list(enumerate(self._train_data['ProductDescription'].cat.categories))])
+        self._type_category_code = dict([(v[1], v[0]) for v in list(enumerate(self._train_data['InstanceType'].cat.categories))])
+
+        #self._az_category_code = dict(enumerate(self._train_data['Region'].cat.categories))
+        #self._os_category_code = dict(enumerate(self._train_data['ProductDescription'].cat.categories))
+        #self._type_category_code = dict(enumerate(self._train_data['InstanceType'].cat.categories))
 
     def _prune_train_data(self):
         #self._train_data = self._train_data.drop('Timestamp', axis=1)
