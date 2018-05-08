@@ -100,6 +100,7 @@ class GetBid(Resource):
         :param bid:
         :return: None
         """
+        bid = bid if bid is not None else -1.0
         bid_cache[self.get_bid_cache_key(instance, region, os, timestamp, duration)] = bid
 
     def get_bid(self, instance, region, os, timestamp, duration):
@@ -191,6 +192,8 @@ class GetBid(Resource):
             bid = self.get_bid_cache(instance, region, os, timestamp, duration)
             if bid is None:
                 bid = self.get_bid(instance, region, os, timestamp, duration)
+            elif bid < 0:
+                bid = None
 
             if out_instance is None or (bid is not None and bid < bid_price):
                 out_instance = instance
