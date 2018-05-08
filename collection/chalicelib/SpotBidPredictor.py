@@ -37,6 +37,8 @@ class SpotBidPredictor:
         type_code = self._type_category_code.get(instance_type)
         region_code = self._az_category_code.get(region)
         os_code = self._os_category_code.get(product_description)
+        if type_code is None or region is None or os is None:
+            return None
         input = self._get_df_from_values(type_code, region_code, os_code)
         return self._lm_model.predict(input)[0]
 
@@ -70,7 +72,7 @@ class SpotBidPredictor:
 
     def _get_df_from_values(self, type_code, region_code, os_code):
         temp = {'InstanceType':[type_code], 'Region':[region_code], 'ProductDescription':[os_code]}
-        eprint("Getting bid for params - {}".format(temp))
+        #eprint("Getting bid for params - {}".format(temp))
         return pd.DataFrame(temp)
 
     def _categorize_train_data(self):

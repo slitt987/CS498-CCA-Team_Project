@@ -7,6 +7,7 @@ import dateutil
 from pprint import pformat
 import json
 import itertools
+from math import ceil
 
 try:
     # Python 2.6-2.7
@@ -46,29 +47,16 @@ instances_index = IndexData(elastic_url, instance_index, doc_type=instance_doc_t
 history_index = IndexData(elastic_url, index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict,
                     index_mappings=mappings)
 history = history_index.scan(scroll_ttl="10m")
-
-# Debug
 history_gen = (
     {
         "Region": r.get("Region").lower(),
         "InstanceType": r.get("InstanceType").lower(),
         "ProductDescription": r.get("ProductDescription").lower(),
-        "Timestamp": to_epoch(dateutil.parser.parse(r.get("Timestamp"))),
-        "SpotPrice": float(r.get("SpotPrice"))
-    } for r in history)
-eprint(pformat(list(itertools.islice(history_gen, 5))))
-history = history_index.scan(scroll_ttl="10m")
-
-history_gen = (
-    {
-        "Region": r.get("Region").lower(),
-        "InstanceType": r.get("InstanceType").lower(),
-        "ProductDescription": r.get("ProductDescription").lower(),
-        "Timestamp": to_epoch(dateutil.parser.parse(r.get("Timestamp"))),
+        #"Timestamp": to_epoch(dateutil.parser.parse(r.get("Timestamp"))),
         "SpotPrice": float(r.get("SpotPrice"))
     } for r in history)
 eprint("Starting model training")
-history_gen=list(itertools.islice(history_gen,10000))
+#history_gen=list(itertools.islice(history_gen,10000))
 model = SpotBidPredictor(history_gen)
 eprint("Training complete")
 
@@ -126,8 +114,9 @@ class GetBid(Resource):
         #bid = 1.0
         #DEBUG
         eprint("Getting bid for params - {}".format([instance, region, os]))
-
         bid = model.predict(instance, region, os)
+        bid = ceil(bid * 100) / 100 if bid is not None else None
+        eprint("Modeled price: {}".format(bid))
 
         self.put_bid_cache(instance, region, os, timestamp, duration, bid)
         return bid
@@ -202,7 +191,7 @@ class GetBid(Resource):
             if bid is None:
                 bid = self.get_bid(instance, region, os, timestamp, duration)
 
-            if out_instance is None or bid < bid_price:
+            if out_instance is None or (bid is not None and bid < bid_price):
                 out_instance = instance
                 out_region = region
                 bid_price = bid
