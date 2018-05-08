@@ -50,7 +50,7 @@ history_gen = (
         "InstanceType": r.get("InstanceType"),
         "ProductDescription": r.get("ProductDescription"),
         "Timestamp": to_epoch(dateutil.parser.parse(r.get("Timestamp"))),
-        "SpotPrice": r.get("SpotPrice")
+        "SpotPrice": float(r.get("SpotPrice"))
     } for r in history)
 eprint("Starting model training")
 model = SpotBidPredictor(history_gen)
