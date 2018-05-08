@@ -48,7 +48,15 @@ history_index = IndexData(elastic_url, index, doc_type=doc_type, connection_opti
 history = history_index.scan(scroll_ttl="10m")
 
 # Debug
-eprint(pformat(itertools.islice(history, 5)))
+history_gen = (
+    {
+        "Region": r.get("Region"),
+        "InstanceType": r.get("InstanceType"),
+        "ProductDescription": r.get("ProductDescription"),
+        "Timestamp": to_epoch(dateutil.parser.parse(r.get("Timestamp"))),
+        "SpotPrice": float(r.get("SpotPrice"))
+    } for r in history)
+eprint(pformat(list(itertools.islice(history_gen, 5))))
 history = history_index.scan(scroll_ttl="10m")
 
 history_gen = (
