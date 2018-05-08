@@ -48,11 +48,13 @@ history_gen = (
     {
         "Region": r.get("Region"),
         "InstanceType": r.get("InstanceType"),
-        "OS": r.get("ProductDescription"),
+        "ProductDescription": r.get("ProductDescription"),
         "Timestamp": to_epoch(dateutil.parser.parse(r.get("Timestamp"))),
-        "Price": r.get("SpotPrice")
+        "SpotPrice": r.get("SpotPrice")
     } for r in history)
+eprint("Starting model training")
 model = SpotBidPredictor(history_gen)
+eprint("Training complete")
 
 # Get Bid endpoint
 class GetBid(Resource):

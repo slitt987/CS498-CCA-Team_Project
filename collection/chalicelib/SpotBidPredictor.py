@@ -3,6 +3,7 @@ import pandas as pd
 import scipy.stats as stats
 import sklearn
 import glob, os
+from common import eprint
 from sklearn.linear_model import LinearRegression
 
 
@@ -15,9 +16,13 @@ class SpotBidPredictor:
 
     def __init__(self, data_generator):
         # Init a predictor
+        eprint("Converting data to DataFrame")
         self._int_df = pd.DataFrame(data_generator)
+        eprint("Setting Target")
         self._target_price = self._int_df['SpotPrice']
+        eprint("Pre-Processing")
         self._pre_process_train_data()
+        eprint("Training")
         self.train()
 
     def train(self):
