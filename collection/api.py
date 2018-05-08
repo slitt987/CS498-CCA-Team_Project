@@ -22,8 +22,9 @@ config = ConfigStage('chalicelib/collection.ini')
 
 context = SSL.Context(SSL.SSLv23_METHOD)
 api = Api(app)
+bid_cache_ttl = float(config.get("api", "ttl_seconds"))
 bid_cache = ExpiringDict(max_len=int(config.get("api", "cache_length")),
-                         max_age_seconds=float(config.get("api", "ttl_seconds")))
+                         max_age_seconds=bid_cache_ttl * 2)
 search_cache = ExpiringDict(max_len=int(config.get("api", "search_cache_length")),
                             max_age_seconds=float(config.get("api", "search_ttl_seconds")))
 
@@ -73,7 +74,7 @@ class GetBid(Resource):
         :param duration: int: hours?
         :return: string: key
         """
-        epoch_hour = long(to_epoch(timestamp) / 3600)
+        epoch_hour = long(to_epoch(timestamp) / bid_cache_ttl)
         return "{0}.{1}.{2}.{3}.{4}".format(instance, region, os, epoch_hour, duration)
 
     def get_bid_cache(self, instance, region, os, timestamp, duration):
@@ -113,8 +114,8 @@ class GetBid(Resource):
         """
         #bid = 1.0
         #DEBUG
-        eprint("Getting bid for params - {}".format([instance, region, os]))
-        bid = model.predict(instance, region, os)
+        eprint("Getting bid for params - {}".format([instance, region, os, timestamp.strftime('%Y-%m-%d %H:%M:%S'), duration]))
+        bid = model.predict(instance, region, os, to_epoch(timestamp), duration)
         bid = ceil(bid * 100) / 100 if bid is not None else None
         eprint("Modeled price: {}".format(bid))
 

@@ -33,7 +33,7 @@ class SpotBidPredictor:
 
     # Sample input dict
     # {'InstanceType':['c3.8xlarge'], 'Region':['ap-northeast-1a'], 'ProductDescription':['Windows']}
-    def predict(self, instance_type, region, product_description):
+    def predict(self, instance_type, region, product_description, epoch_timestamp, duration):
         type_code = self._type_category_code.get(instance_type)
         region_code = self._az_category_code.get(region)
         os_code = self._os_category_code.get(product_description)
