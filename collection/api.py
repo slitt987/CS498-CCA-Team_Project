@@ -6,6 +6,7 @@ from chalicelib import *
 import dateutil
 from pprint import pformat
 import json
+import itertools
 
 try:
     # Python 2.6-2.7
@@ -42,8 +43,14 @@ instances_index = IndexData(elastic_url, instance_index, doc_type=instance_doc_t
                             index_settings=instance_index_dict, index_mappings=instance_mappings, alias=True)
 
 # Training
-history = IndexData(elastic_url, index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict,
-                    index_mappings=mappings).scan(scroll_ttl="10m")
+history_index = IndexData(elastic_url, index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict,
+                    index_mappings=mappings)\
+history = history_index.scan(scroll_ttl="10m")
+
+# Debug
+eprint(pformat(itertools.islice(history, 5)))
+history = history_index.scan(scroll_ttl="10m")
+
 history_gen = (
     {
         "Region": r.get("Region"),
@@ -108,6 +115,9 @@ class GetBid(Resource):
         :return: float: bid
         """
         #bid = 1.0
+        #DEBUG
+        eprint("Getting bid for params - {}".format([instance, region, os]))
+        
         bid = model.predict(instance, region, os)
 
         self.put_bid_cache(instance, region, os, timestamp, duration, bid)
