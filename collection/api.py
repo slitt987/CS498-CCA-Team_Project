@@ -44,7 +44,7 @@ instances_index = IndexData(elastic_url, instance_index, doc_type=instance_doc_t
 
 # Training
 history_index = IndexData(elastic_url, index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict,
-                    index_mappings=mappings)\
+                    index_mappings=mappings)
 history = history_index.scan(scroll_ttl="10m")
 
 # Debug
@@ -117,7 +117,7 @@ class GetBid(Resource):
         #bid = 1.0
         #DEBUG
         eprint("Getting bid for params - {}".format([instance, region, os]))
-        
+
         bid = model.predict(instance, region, os)
 
         self.put_bid_cache(instance, region, os, timestamp, duration, bid)
