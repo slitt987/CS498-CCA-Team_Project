@@ -73,8 +73,8 @@ class GetBid(Resource):
         :param duration: int: hours?
         :return: string: key
         """
-        epoch_ten_minute = long(to_epoch(timestamp) / 600)
-        return "{0}.{1}.{2}.{3}.{4}".format(instance, region, os, epoch_ten_minute, duration)
+        epoch_hour = long(to_epoch(timestamp) / 3600)
+        return "{0}.{1}.{2}.{3}.{4}".format(instance, region, os, epoch_hour, duration)
 
     def get_bid_cache(self, instance, region, os, timestamp, duration):
         """
