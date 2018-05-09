@@ -171,6 +171,14 @@ class IndexData:
         # print "DEBUG QUERY: {}".format(json.dumps(query, indent=4, sort_keys=True))
         return self.scan(query=query)
 
+    def get_doc(self, id):
+        """
+        Gets a single document
+        :param id: ES Document id
+        :return: ES Source
+        """
+        return byteify(self.__client.get(self.__index, self.__doc_type, id).get("_source"))
+
     def purge_alias_index(self, ttl=86400):
         """
         purges old indexes that used to be tied to an alias (used for A/B replacement index usage)
