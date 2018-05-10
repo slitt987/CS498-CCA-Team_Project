@@ -49,26 +49,11 @@ bid_mappings = json.loads(bid_index_dict.pop("mappings", "{}"))
 
 instances_index = IndexData(elastic_url, instance_index, doc_type=instance_doc_type, connection_options=elastic_dict,
                             index_settings=instance_index_dict, index_mappings=instance_mappings, alias=True)
-"""
-# Training
-history_index = IndexData(elastic_url, index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict,
-                    index_mappings=mappings)
-history = history_index.scan(scroll_ttl="10m")
-history_gen = (
-    {
-        "Region": r.get("Region").lower(),
-        "InstanceType": r.get("InstanceType").lower(),
-        "ProductDescription": r.get("ProductDescription").lower(),
-        #"Timestamp": to_epoch(dateutil.parser.parse(r.get("Timestamp"))),
-        "SpotPrice": float(r.get("SpotPrice"))
-    } for r in history)
-eprint("Starting model training")
-#history_gen=list(itertools.islice(history_gen,10000))
-model = SpotBidPredictor(history_gen)
-eprint("Training complete")
-"""
+
 bid_index = IndexData(elastic_url, bid_index, doc_type=bid_doc_type, connection_options=elastic_dict,
                       index_settings=bid_index_dict, index_mappings=bid_mappings)
+
+predictor = BidPredictor(None, bid_index)
 
 # Get Bid endpoint
 class GetBid(Resource):
@@ -113,10 +98,6 @@ class GetBid(Resource):
         bid = bid if bid is not None else -1.0
         bid_cache[self.get_bid_cache_key(instance, region, os, timestamp, duration)] = bid
 
-    @staticmethod
-    def get_bid_es_key(region, instance, os):
-        return "{}~{}~{}".format(region, instance, os)
-
     def get_bid(self, instance, region, os, timestamp, duration):
         """
         returns the bid value evaluated for the input parameters
@@ -127,23 +108,9 @@ class GetBid(Resource):
         :param duration: int: hours?
         :return: float: bid
         """
-        #bid = 1.0
-        #DEBUG
-        eprint("Getting bid for params - {}".format([instance, region, os, timestamp.strftime('%Y-%m-%d %H:%M:%S'), duration]))
-        """
-        bid = model.predict(instance, region, os, to_epoch(timestamp), duration)
-        bid = ceil(bid * 100) / 100 if bid is not None else None
-        """
-        if duration < 1:
-            duration = 1
-        elif duration > 30:
-            duration = 30
-        try:
-            bid = bid_index.get_doc(self.get_bid_es_key(region, instance, os)).get("summary")[duration - 1]
-            bid = bid.split('/')
-        except NotFoundError:
-            bid = [None, -1]
 
+        eprint("Getting bid for params - {}".format([instance, region, os, timestamp.strftime('%Y-%m-%d %H:%M:%S'), duration]))
+        bid = predictor.get_bid(region, instance, os, duration)
         eprint("Modeled price: {}".format(bid))
 
         self.put_bid_cache(instance, region, os, timestamp, duration, bid)
