@@ -8,6 +8,7 @@ from pprint import pformat
 import json
 import itertools
 from math import ceil
+from elasticsearch import NotFoundError
 
 try:
     # Python 2.6-2.7
@@ -41,25 +42,18 @@ instance_index = instance_index_dict.pop("name", "instance_map")
 instance_doc_type = instance_index_dict.pop("doc_type", "instance")
 instance_mappings = json.loads(instance_index_dict.pop("mappings", "{}"))
 
+bid_index_dict = config.items("bid_index", {})
+bid_index = bid_index_dict.pop("name", "spot_bids")
+bid_doc_type = bid_index_dict.pop("doc_type", "bid")
+bid_mappings = json.loads(bid_index_dict.pop("mappings", "{}"))
+
 instances_index = IndexData(elastic_url, instance_index, doc_type=instance_doc_type, connection_options=elastic_dict,
                             index_settings=instance_index_dict, index_mappings=instance_mappings, alias=True)
 
-# Training
-history_index = IndexData(elastic_url, index, doc_type=doc_type, connection_options=elastic_dict, index_settings=index_dict,
-                    index_mappings=mappings)
-history = history_index.scan(scroll_ttl="10m")
-history_gen = (
-    {
-        "Region": r.get("Region").lower(),
-        "InstanceType": r.get("InstanceType").lower(),
-        "ProductDescription": r.get("ProductDescription").lower(),
-        #"Timestamp": to_epoch(dateutil.parser.parse(r.get("Timestamp"))),
-        "SpotPrice": float(r.get("SpotPrice"))
-    } for r in history)
-eprint("Starting model training")
-#history_gen=list(itertools.islice(history_gen,10000))
-model = SpotBidPredictor(history_gen)
-eprint("Training complete")
+bid_index = IndexData(elastic_url, bid_index, doc_type=bid_doc_type, connection_options=elastic_dict,
+                      index_settings=bid_index_dict, index_mappings=bid_mappings)
+
+predictor = BidPredictor(None, bid_index)
 
 # Get Bid endpoint
 class GetBid(Resource):
@@ -87,7 +81,8 @@ class GetBid(Resource):
         :param duration: int: hours?
         :return: float: bid
         """
-        return bid_cache.get(self.get_bid_cache_key(instance, region, os, timestamp, duration))
+        bid = bid_cache.get(self.get_bid_cache_key(instance, region, os, timestamp, duration))
+        return bid if bid is not None else [None, None]
 
     def put_bid_cache(self, instance, region, os, timestamp, duration, bid):
         """
@@ -113,11 +108,9 @@ class GetBid(Resource):
         :param duration: int: hours?
         :return: float: bid
         """
-        #bid = 1.0
-        #DEBUG
+
         eprint("Getting bid for params - {}".format([instance, region, os, timestamp.strftime('%Y-%m-%d %H:%M:%S'), duration]))
-        bid = model.predict(instance, region, os, to_epoch(timestamp), duration)
-        bid = ceil(bid * 100) / 100 if bid is not None else None
+        bid = predictor.get_bid(region, instance, os, duration)
         eprint("Modeled price: {}".format(bid))
 
         self.put_bid_cache(instance, region, os, timestamp, duration, bid)
@@ -184,20 +177,22 @@ class GetBid(Resource):
         # loop through instance/region combos
         out_instance = None
         out_region = None
+        out_az = None
         bid_price = -1.0
         for instance, region in instance_matches:
             instance = instance.lower()
             region = region.lower()
             # Try cache, fallback to model
-            bid = self.get_bid_cache(instance, region, os, timestamp, duration)
+            az, bid = self.get_bid_cache(instance, region, os, timestamp, duration)
             if bid is None:
-                bid = self.get_bid(instance, region, os, timestamp, duration)
+                az, bid = self.get_bid(instance, region, os, timestamp, duration)
             elif bid < 0:
                 bid = None
 
-            if out_instance is None or (bid is not None and bid < bid_price):
+            if az is not None and (out_instance is None or bid < bid_price):
                 out_instance = instance
                 out_region = region
+                out_az = az
                 bid_price = bid
 
         if out_instance is None:
@@ -206,6 +201,7 @@ class GetBid(Resource):
             return {
                 'instance': out_instance,
                 'region': out_region,
+                'availability_zone': out_az,
                 'os': os,
                 'bid_price': bid_price,
                 'matching_instances': len(instance_matches)
