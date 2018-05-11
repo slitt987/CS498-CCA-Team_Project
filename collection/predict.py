@@ -66,6 +66,7 @@ for core in range(0, cores):
     threads.append(thread)
 
 [thread.join() for thread in threads]
+eprint("Training Complete")
 
 
 
